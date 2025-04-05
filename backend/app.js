@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import db from './config/db.js';
 import dotenv from 'dotenv';
+import patientRoute from './route/patientRoute.js';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // connect to frontend
 app.use(cors());
+app.use('/patient', patientRoute);
 
 export const port = 5000;
 
