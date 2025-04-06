@@ -1,106 +1,153 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PostCard, type Post as BasePost } from '../../components/PostCard';
 
-type Entry = {
-  id: string;
-  type: 'milestone' | 'symptom' | 'medication' | 'note';
-  content: string;
-  date: string;
+type Post = BasePost & {
+  community?: string;
+  isFriend?: boolean;
 };
 
-const mockEntries: Entry[] = [
+const mockPosts: Post[] = [
+  // Cancer community posts
+
   {
     id: '1',
-    type: 'milestone',
-    content: 'Started new medication',
-    date: '2025-04-01',
+    author: {
+      name: 'Sarah Johnson',
+      avatar: 'https://randomuser.me/api/portraits/men/48.jpg',
+    },
+    content: 'I\'M GONNA BEAT CANCER YEAHHH #Cancer',
+    media: [
+      {
+        type: 'video',
+        url: 'https://example.com/yoga-routine-video.mp4',
+        thumbnail: require('../../assets/images/running.jpg'),
+        aspectRatio: 16/9
+      }
+    ],
+    timestamp: '2 hours ago',
+    likes: 45,
+    comments: 12,
+    isLiked: false,
+    community: 'Cancer',
+    isFriend: true,
   },
   {
     id: '2',
-    type: 'symptom',
-    content: 'Feeling less pain today',
-    date: '2025-04-03',
+    author: {
+      name: 'Michael Chen',
+      avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+    },
+    content: 'Progress update! Here\'s my mobility improvement over the last 3 months. Consistency is key! 💪',
+    media: [
+      {
+        type: 'image',
+        url: require('../../assets/images/running.jpg'),
+        aspectRatio: 4/3
+      },
+      {
+        type: 'image',
+        url: require('../../assets/images/icon.png'),
+        aspectRatio: 4/3
+      }
+    ],
+    timestamp: '5 hours ago',
+    likes: 89,
+    comments: 23,
+    isLiked: true,
+    community: 'Cancer',
+    isFriend: false,
   },
   {
     id: '3',
-    type: 'medication',
-    content: 'Took all medications on schedule',
-    date: '2025-04-05',
-  },
-  {
-    id: '4',
-    type: 'note',
-    content: 'Doctor appointment scheduled for next week',
-    date: '2025-04-05',
+    author: {
+      name: 'Aisha Patel',
+      avatar: 'https://randomuser.me/api/portraits/women/63.jpg',
+    },
+    content: 'Check out this quick tutorial on using resistance bands for gentle strength training. Perfect for days when you\'re dealing with flare-ups! 🎥',
+    media: [
+      {
+        type: 'video',
+        url: 'https://example.com/resistance-band-tutorial.mp4',
+        thumbnail: require('../../assets/images/splash-icon.png'),
+        aspectRatio: 9/16
+      }
+    ],
+    timestamp: '1 day ago',
+    likes: 156,
+    comments: 34,
+    isLiked: false,
+    community: 'Cancer',
+    isFriend: true,
   },
 ];
 
-type EntryCardProps = {
-  entry: Entry;
-};
-
-const EntryCard = ({ entry }: EntryCardProps) => {
-  const getIconName = () => {
-    switch (entry.type) {
-      case 'milestone':
-        return 'trophy';
-      case 'symptom':
-        return 'medkit';
-      case 'medication':
-        return 'medical';
-      case 'note':
-        return 'document-text';
-      default:
-        return 'document';
-    }
-  };
-
-  const getCardColor = () => {
-    switch (entry.type) {
-      case 'milestone':
-        return '#e9f5f8';
-      case 'symptom':
-        return '#f8f1e9';
-      case 'medication':
-        return '#f0e9f8';
-      case 'note':
-        return '#e9f8ea';
-      default:
-        return '#f5f5f5';
-    }
-  };
-
-  return (
-    <View style={[styles.card, { backgroundColor: getCardColor() }]}>
-      <View style={styles.cardHeader}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={getIconName()} size={24} color="#0d9488" />
-        </View>
-        <Text style={styles.cardType}>
-          {entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}
-        </Text>
-        <Text style={styles.cardDate}>{entry.date}</Text>
-      </View>
-      <Text style={styles.cardContent}>{entry.content}</Text>
-    </View>
-  );
-};
+type PostFilter = 'Community' | 'Friends' | 'All';
 
 export default function HomeScreen() {
+  const [posts, setPosts] = useState<Post[]>(mockPosts);
+  const [filter, setFilter] = useState<PostFilter>('Community');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  
+  const handleLike = (id: string) => {
+    setPosts(posts.map(post => {
+      if (post.id === id) {
+        return {
+          ...post,
+          isLiked: !post.isLiked,
+          likes: post.isLiked ? post.likes - 1 : post.likes + 1
+        };
+      }
+      return post;
+    }));
+  };
+
+  const filteredPosts = posts.filter(post => {
+    if (filter === 'All') return true;
+    if (filter === 'Friends') return post.isFriend;
+    if (filter === 'Community') return post.community === 'Cancer';
+    return false;
+  });
+  
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Your Timeline</Text>
+          <TouchableOpacity 
+            style={styles.filterButton}
+            onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+          >
+            <Text style={styles.filterText}>{filter}</Text>
+            <Ionicons name={showFilterDropdown ? 'chevron-up' : 'chevron-down'} size={16} color="#6b7280" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.addButton}>
             <Ionicons name="add" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        {showFilterDropdown && (
+          <View style={styles.filterDropdown}>
+            {['Community', 'Friends', 'All'].map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[styles.filterOption, filter === option && styles.filterOptionSelected]}
+                onPress={() => {
+                  setFilter(option as PostFilter);
+                  setShowFilterDropdown(false);
+                }}
+              >
+                <Text style={[styles.filterOptionText, filter === option && styles.filterOptionTextSelected]}>
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         
-        <View style={styles.entriesContainer}>
-          {mockEntries.map(entry => (
-            <EntryCard key={entry.id} entry={entry} />
+        <View style={styles.postsContainer}>
+          {filteredPosts.map(post => (
+            <PostCard key={post.id} post={post} onLike={handleLike} />
           ))}
         </View>
       </ScrollView>
@@ -109,6 +156,51 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  filterText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    marginRight: 4,
+  },
+  filterDropdown: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  filterOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  filterOptionSelected: {
+    backgroundColor: '#f3f4f6',
+  },
+  filterOptionText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  filterOptionTextSelected: {
+    fontWeight: '500',
+    color: '#0d9488',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
@@ -135,39 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  entriesContainer: {
+  postsContainer: {
     gap: 12,
-  },
-  card: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  iconContainer: {
-    marginRight: 8,
-  },
-  cardType: {
-    fontWeight: '600',
-    fontSize: 16,
-    flex: 1,
-  },
-  cardDate: {
-    color: '#6b7280',
-    fontSize: 14,
-  },
-  cardContent: {
-    fontSize: 15,
-    color: '#1f2937',
-    lineHeight: 22,
   },
 });
