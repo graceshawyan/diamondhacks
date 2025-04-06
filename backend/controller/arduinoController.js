@@ -2,7 +2,8 @@ import { SerialPort } from 'serialport';
 
 // Configuration for the serial port
 const portConfig = {
-    path: '/dev/tty.usbmodem11201',
+    // path: '/dev/tty.usbmodem11201',
+    path: '/dev/ttyACM0',
     baudRate: 9600,
     autoOpen: false,
     dtr: false,

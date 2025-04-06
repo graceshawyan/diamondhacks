@@ -78,10 +78,10 @@ const formatMedicationData = (medSchedule) => {
 };
 
 export default function MedicationsScreen() {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);  // Initialize with default time slots
   const [newMedication, setNewMedication] = useState({
     name: '',
@@ -106,17 +106,27 @@ export default function MedicationsScreen() {
   
   // Time selection options
   const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-  const minutes = ['00', '15', '30', '45'];
+  const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
   const periods = ['AM', 'PM'];
   
   // Animation for the modal
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Type definition for medication
+  type Medication = {
+    id: string;
+    name: string;
+    frequency: string;
+    time: string;
+    active: boolean;
+    rawSchedule?: Record<string, string[]>;
+  };
+
   // Format raw medication data from API
-  const processMedicationData = (medSchedule) => {
+  const processMedicationData = (medSchedule: Record<string, any>): Medication[] => {
     if (!medSchedule) return [];
     
-    const formatted = [];
+    const formatted: Medication[] = [];
     let id = 1;
     
     Object.entries(medSchedule).forEach(([name, medData]) => {
@@ -215,7 +225,7 @@ export default function MedicationsScreen() {
   );
 
   // Toggle medication status (active/inactive)
-  const toggleMedicationStatus = async (id) => {
+  const toggleMedicationStatus = async (id: string) => {
     // Find the medication to toggle
     const medication = medications.find(med => med.id === id);
     if (!medication) return;
@@ -389,7 +399,7 @@ export default function MedicationsScreen() {
   };
 
 
-  const deleteMedication = async (medication) => {
+  const deleteMedication = async (medication: Medication) => {
     Alert.alert(
       'Delete Medication',
       `Are you sure you want to delete ${medication.name}?`,

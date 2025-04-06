@@ -1,5 +1,6 @@
 import express from 'express';
 import { initializeArduino, cleanup } from './controller/arduinoController.js';
+import { startMedicationScheduler, stopMedicationScheduler } from './services/medicationScheduler.js';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -194,10 +195,17 @@ db()
               // Setup Socket.IO after all routes are loaded
               setupSocketIO(io);
               
+              // Variable to store scheduler interval reference
+              let schedulerInterval;
+              
               // Initialize Arduino before starting server
               initializeArduino().then(success => {
                 if (success) {
                   console.log('Arduino initialized successfully');
+                  
+                  // Start medication scheduler service after Arduino is initialized
+                  schedulerInterval = startMedicationScheduler();
+                  console.log('Medication scheduler started');
                 } else {
                   console.warn('Failed to initialize Arduino - box control will be disabled');
                 }
@@ -210,7 +218,15 @@ db()
                 // Cleanup on server shutdown
                 process.on('SIGTERM', async () => {
                   console.log('SIGTERM received. Cleaning up...');
+                  
+                  // Stop medication scheduler
+                  if (schedulerInterval) {
+                    stopMedicationScheduler(schedulerInterval);
+                  }
+                  
+                  // Cleanup Arduino connection
                   await cleanup();
+                  
                   server.close(() => {
                     console.log('Server closed');
                     process.exit(0);
