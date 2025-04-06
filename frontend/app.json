@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "HealthJourney",
+    "slug": "healthjourney",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "recoverly",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -19,7 +19,6 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
