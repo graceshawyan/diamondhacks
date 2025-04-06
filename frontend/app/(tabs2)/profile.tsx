@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, View, Text, Image, StyleSheet, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Switch } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, Image, StyleSheet, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +20,7 @@ const getBaseUrl = () => {
 };
 
 // Default avatar to use when user doesn't have a profile image
-const DEFAULT_AVATAR = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
+const DEFAULT_AVATAR = 'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg';
 
 export default function ProfileScreen() {
   const [showSettings, setShowSettings] = useState(false);
@@ -36,7 +36,6 @@ export default function ProfileScreen() {
     pronouns: '',
     condition: '',
     bio: '',
-    product: false, // Add product state
   });
 
   useEffect(() => {
@@ -69,10 +68,7 @@ export default function ProfileScreen() {
             pronouns: data.data.patient.pronouns || '',
             condition: data.data.patient.condition || '',
             bio: data.data.patient.bio || '',
-            product: data.data.patient.product || false, // Include product status
           });
-          
-          console.log('Product status from API:', data.data.patient.product);
         } else {
           console.error('Failed to fetch user data');
         }
@@ -95,81 +91,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const pickImage = async () => {
-    try {
-      // Request permission
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need permission to access your photos');
-        return;
-      }
-      
-      // Launch image picker
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        // Set the selected image locally first for immediate feedback
-        setSelectedImage(result.assets[0].uri);
-        
-        // Upload the image to the server
-        setUploadingImage(true);
-        const token = await AsyncStorage.getItem('authToken');
-        
-        if (!token) {
-          console.error('No auth token');
-          return;
-        }
-
-        // Create FormData for upload
-        const formData = new FormData();
-        formData.append('profilePicture', {
-          uri: result.assets[0].uri,
-          type: 'image/jpeg',
-          name: 'profile-picture.jpg',
-        });
-
-        // Upload to server
-        const baseUrl = getBaseUrl();
-        const response = await fetch(`${baseUrl}/patient/upload-pfp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        if (response.ok) {
-          // Refresh user data to get updated profile picture
-          const updatedUserResponse = await fetch(`${baseUrl}/patient/user-info`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (updatedUserResponse.ok) {
-            const data = await updatedUserResponse.json();
-            setUserData(data.data.patient);
-          }
-        } else {
-          Alert.alert('Error', 'Failed to upload profile picture');
-        }
-      }
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-  
   const handleSaveChanges = async () => {
     try {
       setLoading(true);
@@ -187,11 +108,8 @@ export default function ProfileScreen() {
         age: formData.age ? parseInt(formData.age) : null,
         pronouns: formData.pronouns,
         condition: formData.condition,
-        bio: formData.bio,
-        product: formData.product // Add product status to update
+        bio: formData.bio
       };
-      
-      console.log('Updating product status to:', formData.product);
       
       // Handle password update if provided
       if (formData.password && formData.password === formData.confirmPassword && formData.password.length > 0) {
@@ -267,13 +185,22 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.profileBox}>
-          <Image 
-            source={{ 
-              uri: userData?.pfp ? `${getBaseUrl()}/${userData.pfp}` : DEFAULT_AVATAR 
-            }} 
-            style={styles.avatar} 
-          />
-          <Text style={styles.username}>@{userData?.name || 'username'}</Text>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ uri: userData?.pfp ? `${getBaseUrl()}/${userData.pfp}` : DEFAULT_AVATAR }}
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+            <TouchableOpacity 
+              style={styles.avatarEditButton}
+              onPress={() => {
+                setShowSettings(true);
+              }}
+            >
+              <Ionicons name="pencil" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.username}>{userData?.name || 'User'}</Text>
 
           <View style={styles.statsContainer}>
             <View style={styles.statRow}>
@@ -346,9 +273,66 @@ export default function ProfileScreen() {
               <TouchableOpacity 
                 style={[styles.uploadButton, uploadingImage && styles.disabledButton]} 
                 disabled={uploadingImage}
-                onPress={pickImage}
+                onPress={async () => {
+                  try {
+                    // Open image picker
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      allowsEditing: true,
+                      aspect: [1, 1],
+                      quality: 0.7,
+                    });
 
+                    if (!result.cancelled && result.assets && result.assets[0]) {
+                      // Upload the image
+                      setUploadingImage(true);
+                      const token = await AsyncStorage.getItem('authToken');
+                      
+                      if (!token) {
+                        console.error('No auth token');
+                        return;
+                      }
 
+                      // Create FormData for upload
+                      const formData = new FormData();
+                      formData.append('profilePicture', {
+                        uri: result.assets[0].uri,
+                        type: 'image/jpeg',
+                        name: 'profile-picture.jpg',
+                      });
+
+                      // Upload to server
+                      const baseUrl = getBaseUrl();
+                      const response = await fetch(`${baseUrl}/patient/upload-pfp`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'multipart/form-data',
+                          'Authorization': `Bearer ${token}`,
+                        },
+                        body: formData,
+                      });
+
+                      if (response.ok) {
+                        // Refresh user data to get updated profile picture
+                        const updatedUserResponse = await fetch(`${baseUrl}/patient/user-info`, {
+                          method: 'GET',
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          }
+                        });
+                        
+                        if (updatedUserResponse.ok) {
+                          const data = await updatedUserResponse.json();
+                          setUserData(data.data.patient);
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error uploading image:', error);
+                  } finally {
+                    setUploadingImage(false);
+                  }
+                }}
               >
                 {uploadingImage ? (
                   <ActivityIndicator size="small" color="#ffffff" />
@@ -443,25 +427,11 @@ export default function ProfileScreen() {
               <Text style={styles.label}>Bio</Text>
               <TextInput
                 style={[styles.input, styles.bioInput]}
-                placeholder="Tell us about yourself"
                 value={formData.bio}
                 onChangeText={(text) => updateFormData('bio', text)}
                 multiline
                 numberOfLines={4}
               />
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Are you using ClamShell?</Text>
-              <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>{formData.product ? 'Yes' : 'No'}</Text>
-                <Switch
-                  value={formData.product}
-                  onValueChange={(value) => updateFormData('product', value)}
-                  trackColor={{ false: '#d1d5db', true: '#0d948880' }}
-                  thumbColor={formData.product ? '#0d9488' : '#f4f3f4'}
-                />
-              </View>
             </View>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges}>
@@ -516,6 +486,32 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
     marginBottom: 12,
+  },
+  avatarContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    marginBottom: 16,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  avatarEditButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#0d9488',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   username: {
     fontSize: 18,
@@ -620,20 +616,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 4,
     fontSize: 14,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-  },
-  toggleLabel: {
-    fontSize: 16,
-    color: '#374151',
   },
   formGroup: {
     marginBottom: 20,

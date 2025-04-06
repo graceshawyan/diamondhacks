@@ -5,11 +5,7 @@ const ai = new AI(process.env.GEMINI_API_KEY);
 
 // Random prompts for analysis
 const prompts = [
-  "Analyze the emotional state of this user based on their post. Consider their language, tone, and content.",
-  "Provide a psychological assessment of this user's mental state based on their recent activity.",
-  "Evaluate the user's overall mood and suggest potential concerns based on their posts.",
-  "Analyze the user's behavior patterns and identify any potential mental health concerns.",
-  "Provide a professional mental health assessment based on the user's recent posts and activity."
+  "Analyze the post and give a summary of whats happening in it"
 ];
 
 // Analyze user content
@@ -28,7 +24,7 @@ export const analyze = async (req, res) => {
     const prompt = prompts[Math.floor(Math.random() * prompts.length)];
 
     // Create a model instance
-    const model = ai.getGenerativeModel({ model: 'gemini-pro' });
+    const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     // Generate analysis
     const result = await model.generateContent(

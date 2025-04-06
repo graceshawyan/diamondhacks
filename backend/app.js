@@ -1,5 +1,7 @@
 //app.js
 import express from 'express';
+import { initializeArduino, cleanup } from './controller/arduinoController.js';
+import { startMedicationScheduler, stopMedicationScheduler } from './services/medicationScheduler.js';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,13 +45,62 @@ export { io };
 
 db()
 .then(() => {
-    server.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-  });
+  // Import routes after DB connection
+  import('./route/patientRoute.js')
+    .then((patientRouteModule) => {
+      app.use('/patient', patientRouteModule.default);
+      
+      import('./route/postRoute.js')
+        .then((postRouteModule) => {
+          app.use('/post', postRouteModule.default);
+          
+          import('./route/communityRoute.js')
+            .then((communityRouteModule) => {
+              app.use('/community', communityRouteModule.default);
+              
+              // Setup Socket.IO after all routes are loade
+              
+              // Variable to store scheduler interval reference
+              let schedulerInterval;
+              
+              // Initialize Arduino before starting server
+              initializeArduino().then(success => {
+                if (success) {
+                  console.log('Arduino initialized successfully');
+                  
+                  // Start medication scheduler service after Arduino is initialized
+                  schedulerInterval = startMedicationScheduler();
+                  console.log('Medication scheduler started');
+                } else {
+                  console.warn('Failed to initialize Arduino - box control will be disabled');
+                }
 
-  server.on('error', (error) => {
-    console.error('Server encountered an error:', error);
-  });
+                // Start server
+                const server = app.listen(port, () => {
+                  console.log(`Server is running on port ${port}`);
+                });
+
+                // Cleanup on server shutdown
+                process.on('SIGTERM', async () => {
+                  console.log('SIGTERM received. Cleaning up...');
+                  
+                  // Stop medication scheduler
+                  if (schedulerInterval) {
+                    stopMedicationScheduler(schedulerInterval);
+                  }
+                  
+                  // Cleanup Arduino connection
+                  await cleanup();
+                  
+                  server.close(() => {
+                    console.log('Server closed');
+                    process.exit(0);
+                  });
+                });
+              });
+            });
+        });
+    });
 });
 
 export default app;

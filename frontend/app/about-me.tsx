@@ -46,6 +46,8 @@ function AboutMeContent() {
   const [condition, setCondition] = useState('');
   const [bio, setBio] = useState('');
   const [isUsingProduct, setIsUsingProduct] = useState(false);
+  
+  console.log('isUsingProduct state:', isUsingProduct);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   
@@ -101,17 +103,54 @@ function AboutMeContent() {
           pronouns,
           condition,
           bio,
-          product: isUsingProduct
+          product: isUsingProduct === true
         })
       });
       
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to update profile');
+        return;
       }
       
-      // Navigate to home page
-      router.replace('/(tabs)/home');
+      // Get the user token from storage
+      const token2 = await AsyncStorage.getItem('authToken');
+      if (!token2) {
+        router.replace('/welcome');
+        return;
+      }
+      
+      // Fetch user info to check product status
+      const userInfoResponse = await fetch(`${getBaseUrl()}/patient/user-info`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token2}`
+        }
+      });
+      
+      if (userInfoResponse.ok) {
+        const userData = await userInfoResponse.json();
+        console.log('User info data:', JSON.stringify(userData, null, 2));
+        
+        // Check if this user should see the meds tab
+        console.log('Product field raw value:', userData.data?.patient?.product);
+        console.log('Product field type:', typeof userData.data?.patient?.product);
+        
+        // Explicitly convert to boolean using triple equals to ensure proper type checking
+        const hasMedsAccess = userData.data?.patient?.product === true;
+        console.log('Final meds access decision:', hasMedsAccess);
+        
+        if (hasMedsAccess) {
+          // Product is true, route to tabs2 layout
+          router.replace('/(tabs2)/home');
+        } else {
+          // Product is false, route to original tabs layout
+          router.replace('/(tabs)/home');
+        }
+      } else {
+        // If we can't check product status, default to original tabs
+        router.replace('/(tabs)/home');
+      }
     } catch (error) {
       console.error('Profile update error:', error);
       setErrorMessage('Failed to update profile. Please try again.');
@@ -195,12 +234,15 @@ function AboutMeContent() {
           </View>
           
           <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Are you using our product?</Text>
+            <Text style={styles.toggleLabel}>Are you using ClamShell?</Text>
             <Switch
               trackColor={{ false: '#d1d5db', true: '#0d9488' }}
               thumbColor={isUsingProduct ? '#ffffff' : '#f4f3f4'}
               ios_backgroundColor="#d1d5db"
-              onValueChange={setIsUsingProduct}
+              onValueChange={(value) => {
+                console.log('Toggle switched to:', value);
+                setIsUsingProduct(value);
+              }}
               value={isUsingProduct}
             />
           </View>
