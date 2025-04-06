@@ -56,7 +56,7 @@ export const register = async (req, res) => {
       name, // This is the username
       email,
       password: hashedPassword,
-      pfp: 'default.jpg',  // Default profile picture
+      pfp: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',  // Default profile picture
       posts: [],           // Empty posts array
       followers: [],       // Empty followers array
       following: [],       // Empty following array
@@ -65,7 +65,7 @@ export const register = async (req, res) => {
       pronouns: '',
       condition: '',       // Condition if provided
       bio: '', 
-      product: false,      // Whether patient is using product
+      product,      // Whether patient is using product
       // Initialize empty medication schedule
       med_schedule: {},    // Structure for medication schedules
       createdAt: new Date()
@@ -196,7 +196,21 @@ export const updateProfile = async (req, res) => {
     if (age !== undefined) updateData.age = age;
     if (pronouns) updateData.pronouns = pronouns;
     if (condition !== undefined) updateData.condition = condition;
-    if (product !== undefined) updateData.product = product === 'true' || product === true;
+    // Fix product toggle conversion to ensure it properly captures boolean values
+    if (product !== undefined) {
+      console.log('Product value received:', product, 'type:', typeof product);
+      // Handle different ways product might be provided (string, boolean, etc.)
+      if (typeof product === 'boolean') {
+        updateData.product = product;
+      } else if (typeof product === 'string') {
+        updateData.product = product.toLowerCase() === 'true';
+      } else if (typeof product === 'number') {
+        updateData.product = product === 1;
+      } else {
+        updateData.product = Boolean(product);
+      }
+      console.log('Product value after conversion:', updateData.product);
+    }
     
     // Handle profile picture upload if present
     if (req.file) {
