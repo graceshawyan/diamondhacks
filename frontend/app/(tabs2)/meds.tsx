@@ -78,10 +78,10 @@ const formatMedicationData = (medSchedule) => {
 };
 
 export default function MedicationsScreen() {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);  // Initialize with default time slots
   const [newMedication, setNewMedication] = useState({
     name: '',
@@ -106,17 +106,27 @@ export default function MedicationsScreen() {
   
   // Time selection options
   const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-  const minutes = ['00', '15', '30', '45'];
+  const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
   const periods = ['AM', 'PM'];
   
   // Animation for the modal
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Type definition for medication
+  type Medication = {
+    id: string;
+    name: string;
+    frequency: string;
+    time: string;
+    active: boolean;
+    rawSchedule?: Record<string, string[]>;
+  };
+
   // Format raw medication data from API
-  const processMedicationData = (medSchedule) => {
+  const processMedicationData = (medSchedule: Record<string, any>): Medication[] => {
     if (!medSchedule) return [];
     
-    const formatted = [];
+    const formatted: Medication[] = [];
     let id = 1;
     
     Object.entries(medSchedule).forEach(([name, medData]) => {
@@ -215,7 +225,7 @@ export default function MedicationsScreen() {
   );
 
   // Toggle medication status (active/inactive)
-  const toggleMedicationStatus = async (id) => {
+  const toggleMedicationStatus = async (id: string) => {
     // Find the medication to toggle
     const medication = medications.find(med => med.id === id);
     if (!medication) return;
@@ -270,7 +280,8 @@ export default function MedicationsScreen() {
     // Show the add medication modal
     setNewMedication({
       name: '',
-      selectedDays: [], // Default to no days selected
+      active: true, // Add the active property to match initial state
+      selectedDays: ['Monday'], // Pre-select Monday for better user experience
       timeSlots: {
         Sunday: ['8:00 AM'],
         Monday: ['8:00 AM'],
@@ -389,7 +400,7 @@ export default function MedicationsScreen() {
   };
 
 
-  const deleteMedication = async (medication) => {
+  const deleteMedication = async (medication: Medication) => {
     Alert.alert(
       'Delete Medication',
       `Are you sure you want to delete ${medication.name}?`,
@@ -662,6 +673,10 @@ export default function MedicationsScreen() {
                     </TouchableOpacity>
                   </View>
                   
+                  <View style={styles.instructionContainer}>
+                    <Text style={styles.instructionText}>Enter medication details below and times. ClamShell will open at the set time!</Text>
+                  </View>
+                  
                   <ScrollView contentContainerStyle={styles.modalScrollContent}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Medication Name</Text>
@@ -748,7 +763,7 @@ export default function MedicationsScreen() {
                       <View key={day} style={styles.dayTimeSlotContainer}>
                         <Text style={styles.dayLabel}>{day}</Text>
                         
-                        {newMedication.timeSlots[day].map((time, index) => (
+                        {newMedication.timeSlots[day].map((time: string, index) => (
                           <View key={`${day}-${index}`} style={styles.timeSlotRow}>
                             <View style={styles.timeInputContainer}>
                               <View style={styles.timeSelectors}>
@@ -948,6 +963,20 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  instructionContainer: {
+    backgroundColor: '#f0f9ff',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0369a1',
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#0c4a6e',
+    lineHeight: 20,
   },
   modalTitle: {
     fontSize: 18,

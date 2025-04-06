@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
@@ -30,7 +30,16 @@ type PostCardProps = {
 };
 
 export const PostCard = ({ post, onLike }: PostCardProps) => {
-  const renderMedia = (media: MediaContent) => {
+  const [showInfoOverlays, setShowInfoOverlays] = useState<{[key: number]: boolean}>({});
+  
+  const toggleInfoOverlay = (index: number) => {
+    setShowInfoOverlays(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const renderMedia = (media: MediaContent, index: number) => {
     const screenWidth = Dimensions.get('window').width - 32; // Full width minus padding
     const mediaHeight = media.aspectRatio ? screenWidth / media.aspectRatio : screenWidth;
 
@@ -73,7 +82,21 @@ export const PostCard = ({ post, onLike }: PostCardProps) => {
         <View style={styles.mediaContainer}>
           {post.media.map((media, index) => (
             <View key={index} style={styles.mediaWrapper}>
-              {renderMedia(media)}
+              {renderMedia(media, index)}
+              <TouchableOpacity 
+                style={[styles.infoButton, showInfoOverlays[index] && styles.infoButtonActive]}
+                onPress={() => toggleInfoOverlay(index)}
+              >
+                <Ionicons name="information-circle" size={18} color={showInfoOverlays[index] ? "#0d9488" : "#ffffff"} />
+              </TouchableOpacity>
+              
+              {showInfoOverlays[index] && (
+                <View style={styles.infoOverlay}>
+                  <Text style={styles.infoText}>
+                    This is some information about this post. Here you can learn more about the content, context, or any additional details that might be relevant to the viewer. The text appears on a semi-transparent dark overlay allowing you to still see the image underneath.
+                  </Text>
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -171,5 +194,38 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     color: '#6b7280',
     fontSize: 14,
+  },
+  infoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 15,
+  },
+  infoButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  infoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 10,
+  },
+  infoText: {
+    color: '#ffffff',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

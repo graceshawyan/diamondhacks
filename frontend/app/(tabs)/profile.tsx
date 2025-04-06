@@ -452,7 +452,7 @@ export default function ProfileScreen() {
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Are you using our product?</Text>
+              <Text style={styles.label}>Are you using ClamShell?</Text>
               <View style={styles.toggleContainer}>
                 <Text style={styles.toggleLabel}>{formData.product ? 'Yes' : 'No'}</Text>
                 <Switch
