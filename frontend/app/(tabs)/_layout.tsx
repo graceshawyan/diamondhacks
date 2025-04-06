@@ -9,12 +9,12 @@ const getBaseUrl = (): string => {
   if (__DEV__) {
     if (Platform.OS === 'android') {
       // Use actual IP address for Expo Go
-      return 'http://172.20.10.6:5000';
+      return 'http://100.64.217.136:5001';
     } else if (Platform.OS === 'ios') {
       // Use actual IP address for iOS 
-      return 'http://172.20.10.6:5000';
+      return 'http://100.64.217.136:5001';
     } else {
-      return 'http://localhost:5000'; // Web
+      return 'http://localhost:5001'; // Web
     }
   }
   // Return production URL if not in development
@@ -116,12 +116,14 @@ export default function TabLayout() {
           animation: 'none',
         }}
       />
+      
+      {/* Changed from community to chatbot */}
       <Tabs.Screen
-        name="community"
+        name="chatbot"
         options={{
-          title: 'Community',
+          title: 'AI Assistant',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name="people" size={24} color={color} />
+            <Ionicons name="chatbubble" size={24} color={color} />
           ),
           gestureEnabled: false,
           animation: 'none',
@@ -135,7 +137,7 @@ export default function TabLayout() {
           options={{
             title: 'Medications',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name="pill" size={24} color={color} />
+              <Ionicons name="medical" size={24} color={color} />
             ),
             gestureEnabled: false,
             animation: 'none',
@@ -158,5 +160,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-
