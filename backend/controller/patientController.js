@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { promisify } from 'util';
+import { initializeArduino, scheduleBoxOperations } from './arduinoController.js';
 
 // Generate JWT token
 const signToken = (id) => {
@@ -405,6 +406,14 @@ export const addMedication = async (req, res) => {
         status: 'fail',
         message: 'Patient not found',
       });
+    }
+
+    // Schedule Arduino box operations for the updated schedule
+    try {
+      await scheduleBoxOperations(updatedPatient.med_schedule);
+    } catch (error) {
+      console.error('Failed to schedule box operations:', error);
+      // Continue anyway as the medication schedule was updated successfully
     }
     
     res.status(200).json({
