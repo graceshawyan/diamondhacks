@@ -156,56 +156,57 @@ export default function MedicationsScreen() {
     return formatted;
   };
   
-  // Fetch medications from API
-  useEffect(() => {
-    const fetchMedications = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Get auth token
-        const token = await AsyncStorage.getItem('authToken');
-        if (!token) {
-          setError('Authentication token not found');
-          setLoading(false);
-          return;
+  // Function to fetch medications from API
+  const fetchMedications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get auth token
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setError('Authentication token not found');
+        setLoading(false);
+        return;
+      }
+      
+      // Get base URL
+      const baseUrl = getBaseUrl();
+      
+      // Fetch medication schedule
+      const response = await fetch(`${baseUrl}/patient/medications`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      });
+      
+      console.log('Med API Response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Medication data:', JSON.stringify(data, null, 2));
         
-        // Get base URL
-        const baseUrl = getBaseUrl();
-        
-        // Fetch medication schedule
-        const response = await fetch(`${baseUrl}/patient/medications`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        console.log('Med API Response status:', response.status);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Medication data:', JSON.stringify(data, null, 2));
-          
-          if (data.data && data.data.med_schedule && Object.keys(data.data.med_schedule).length > 0) {
-            const formattedMeds = processMedicationData(data.data.med_schedule);
-            setMedications(formattedMeds);
-          } else {
-            // Empty medication list
-            setMedications([]);
-            setError('No medications found');
-          }
-        } 
+        if (data.data && data.data.med_schedule && Object.keys(data.data.med_schedule).length > 0) {
+          const formattedMeds = processMedicationData(data.data.med_schedule);
+          setMedications(formattedMeds);
+        } else {
+          // Empty medication list
+          setMedications([]);
+          setError('No medications found');
+        }
+      } 
       } catch (error) {
         console.error('Error fetching medications:', error);
         setError('An error occurred while fetching medications');
       } finally {
         setLoading(false);
       }
-    };
-    
+  };
+
+  // Call fetchMedications when component mounts
+  useEffect(() => {
     fetchMedications();
   }, []);
 
@@ -353,8 +354,10 @@ export default function MedicationsScreen() {
       });
       
       if (response.ok) {
-        // Refresh medications list
+        // Refresh medications list by refetching data
+        setLoading(true);
         await fetchMedications();
+        setLoading(false);
         
         // Close modal and reset form
         closeModal();
@@ -385,10 +388,6 @@ export default function MedicationsScreen() {
     }
   };
 
-  const editMedication = (medication) => {
-    // Navigate to edit medication screen or show modal
-    Alert.alert('Edit Medication', 'This feature will be implemented soon!');
-  };
 
   const deleteMedication = async (medication) => {
     Alert.alert(
@@ -566,15 +565,7 @@ export default function MedicationsScreen() {
                 </View>
                 
                 <View style={styles.medicationActions}>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => editMedication(medication)}>
-                    <Ionicons name="create-outline" size={18} color="#0d9488" />
-                    <Text style={styles.actionText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="notifications-outline" size={18} color="#0d9488" />
-                    <Text style={styles.actionText}>Reminders</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => deleteMedication(medication)}>
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => deleteMedication(medication)}>
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />
                     <Text style={[styles.actionText, { color: '#ef4444' }]}>Delete</Text>
                   </TouchableOpacity>
@@ -1279,8 +1270,20 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
-    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: '#f9fafb',
+    marginHorizontal: 4,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: '#fee2e2',
+    marginHorizontal: 4,
   },
   actionText: {
     fontSize: 14,

@@ -265,6 +265,7 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message,
+    });
   }
   
   // Handle profile picture upload if present
@@ -315,13 +316,7 @@ export const updateProfile = async (req, res) => {
       patient: updatedPatient,
     },
   });
-} catch (error) {
-  console.error('Profile update error:', error);
-  res.status(500).json({
-    status: 'error',
-    message: error.message,
-  });
-}
+
 };
 
 // Protect routes - middleware to check if user is logged in
