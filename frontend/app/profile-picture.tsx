@@ -73,14 +73,20 @@ function ProfilePictureContent() {
         // Create form data for file upload
         const formData = new FormData();
         const filename = profileImage.split('/').pop();
-        const match = /\.([\w]+)$/.exec(filename || '');
-        const type = match ? `image/${match[1]}` : 'image';
+        const match = /\.(\w+)$/.exec(filename || '');
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
         
         // @ts-ignore - TypeScript doesn't handle FormData well in React Native
         formData.append('profilePicture', {
           uri: profileImage,
-          name: filename,
+          name: filename || 'profile.jpg',
           type,
+        });
+        
+        console.log('FormData created with:', {
+          uri: profileImage,
+          name: filename || 'profile.jpg',
+          type
         });
         
         // Get the token from AsyncStorage
@@ -92,10 +98,13 @@ function ProfilePictureContent() {
         
         // Upload the profile picture
         console.log('Uploading to:', `${getBaseUrl()}/patient/update-profile`);
+        console.log('Using token:', token);
+        
+        // Don't set Content-Type header when using FormData with fetch
+        // The browser will automatically set the correct boundary
         const response = await fetch(`${getBaseUrl()}/patient/update-profile`, {
           method: 'PATCH',
           headers: {
-            'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`
           },
           body: formData,
@@ -109,11 +118,23 @@ function ProfilePictureContent() {
         console.log('Profile picture uploaded successfully');
       }
       
-      // Navigate to about-me page
-      router.replace('/about-me');
+      // Show success message
+      Alert.alert(
+        'Success',
+        'Profile picture uploaded successfully',
+        [{ text: 'OK', onPress: () => router.replace('/about-me') }]
+      );
     } catch (error) {
       console.error('Profile picture upload error:', error);
-      setErrorMessage('Failed to upload profile picture. You can try again later.');
+      Alert.alert(
+        'Upload Error',
+        `Error: ${error.message}. You can continue without a profile picture.`,
+        [
+          { text: 'Try Again', style: 'cancel' },
+          { text: 'Continue Anyway', onPress: () => router.replace('/about-me') }
+        ]
+      );
+      setErrorMessage(`Failed to upload: ${error.message}`);
     } finally {
       setIsLoading(false);
     }

@@ -1,7 +1,17 @@
 import express from 'express';
 import multer from 'multer';
 import mongoose from 'mongoose';
-import { register, login, logout, protect, updateProfile, getUserInfo } from '../controller/patientController.js';
+import { 
+  register, 
+  login, 
+  logout, 
+  protect, 
+  updateProfile, 
+  getUserInfo, 
+  addMedication,
+  removeMedication,
+  getMedicationSchedule
+} from '../controller/patientController.js';
 
 // Configure multer to store files in memory
 const storage = multer.memoryStorage();
@@ -46,6 +56,11 @@ router.get('/user-info', protect, getUserInfo);
 
 // Get specific user info by ID
 router.get('/user-info/:id', getUserInfo);
+
+// Medication management routes
+router.post('/medications', protect, addMedication);
+router.delete('/medications/:medicationName', protect, removeMedication);
+router.get('/medications', protect, getMedicationSchedule);
 
 // Get profile picture
 router.get('/profile-picture/:id', async (req, res) => {

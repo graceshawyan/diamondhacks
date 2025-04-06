@@ -1,29 +1,90 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { useEffect, useState } from 'react';
+import { BackHandler, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Get the appropriate base URL depending on the platform
+const getBaseUrl = (): string => {
+  if (__DEV__) {
+    if (Platform.OS === 'android') {
+      // Use actual IP address for Expo Go
+      return 'http://172.20.10.6:5000';
+    } else if (Platform.OS === 'ios') {
+      // Use actual IP address for iOS 
+      return 'http://172.20.10.6:5000';
+    } else {
+      return 'http://localhost:5000'; // Web
+    }
+  }
+  // Return production URL if not in development
+  return 'https://your-production-server.com';
+};
 
 export default function TabLayout() {
+  const [showMedsTab, setShowMedsTab] = useState(false);
+  
   // Prevent going back to login, welcome, or loading pages
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => backHandler.remove();
   }, []);
   
+  // Check if user is using product to show Meds tab
+  useEffect(() => {
+    const checkUserProduct = async () => {
+      try {
+        // Get the token from AsyncStorage
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) return;
+        
+        // Get base URL
+        const baseUrl = getBaseUrl();
+        
+        // Fetch user info
+        const response = await fetch(`${baseUrl}/patient/user-info`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && data.data.patient) {
+            // Check if product is true
+            setShowMedsTab(data.data.patient.product === true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking user product status:', error);
+      }
+    };
+    
+    checkUserProduct();
+  }, []);
+  
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#0d9488',
-        tabBarInactiveTintColor: '#6b7280',
+        headerStyle: {
+          backgroundColor: '#0d9488',
+        },
+        headerTitleStyle: {
+          color: 'white',
+        },
+        headerTintColor: 'white',
+        // Prevent swiping on all screens
+        gestureEnabled: false,
+        // Disable animations for swipe gestures
+        animation: 'none',
+        // Disable hardware back button
+        headerBackVisible: false,
         tabBarStyle: {
           height: 60,
         },
         headerShown: false,
-        // Prevent going back with the hardware back button
-        headerBackVisible: false,
-        // Prevent going back with swipe gesture
-        gestureEnabled: false,
-        animation: 'none',
       }}
     >
       <Tabs.Screen
@@ -33,6 +94,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name="home" size={24} color={color} />
           ),
+          gestureEnabled: false,
+          animation: 'none',
         }}
       />
       <Tabs.Screen
@@ -42,8 +105,27 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name="people" size={24} color={color} />
           ),
+          gestureEnabled: false,
+          animation: 'none',
         }}
       />
+      
+      {/* Always show Meds tab if showMedsTab is true - positioned before Profile */}
+      {showMedsTab && (
+        <Tabs.Screen
+          name="meds"
+          options={{
+            title: 'Medications',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name="pill" size={24} color={color} />
+            ),
+            gestureEnabled: false,
+            animation: 'none',
+          }}
+        />
+      )}
+      
+      {/* Profile tab always appears last */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -51,6 +133,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name="person" size={24} color={color} />
           ),
+          gestureEnabled: false,
+          animation: 'none',
         }}
       />
     </Tabs>
