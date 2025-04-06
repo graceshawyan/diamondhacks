@@ -30,7 +30,7 @@ const createSendToken = (patient, statusCode, res) => {
 export const register = async (req, res) => {
   try {
     const { 
-      name, 
+      name, // Will be changed to username in frontend but keep as name for now for backward compatibility
       email, 
       password, 
     } = req.body;
@@ -53,7 +53,7 @@ export const register = async (req, res) => {
 
     // Create new patient with initialized fields
     const newPatient = {
-      name,
+      name, // This is the username
       email,
       password: hashedPassword,
       pfp: 'default.jpg',  // Default profile picture
@@ -130,7 +130,7 @@ export const logout = (req, res) => {
   });
 };
 
-// Get user information (pfp, bio, age, pronouns, condition)
+// Get user information (pfp, bio, age, pronouns, condition, posts count, followers count, following count)
 export const getUserInfo = async (req, res) => {
   try {
     const patientId = req.params.id || req.patient._id;
@@ -142,7 +142,19 @@ export const getUserInfo = async (req, res) => {
     // Find the patient by ID
     const patient = await patientsCollection.findOne(
       { _id: new mongoose.Types.ObjectId(patientId) },
-      { projection: { pfp: 1, bio: 1, age: 1, pronouns: 1, condition: 1, name: 1 } }
+      { projection: { 
+        pfp: 1, 
+        bio: 1, 
+        age: 1, 
+        pronouns: 1, 
+        condition: 1, 
+        name: 1, // name field represents username
+        email: 1, // Include email for profile settings
+        posts: 1,
+        followers: 1,
+        following: 1,
+        product: 1,
+      } }
     );
     
     if (!patient) {
@@ -151,6 +163,13 @@ export const getUserInfo = async (req, res) => {
         message: 'Patient not found',
       });
     }
+    
+    // Add stats to the patient object
+    patient.stats = {
+      postsCount: patient.posts ? patient.posts.length : 0,
+      followersCount: patient.followers ? patient.followers.length : 0,
+      followingCount: patient.following ? patient.following.length : 0
+    };
     
     res.status(200).json({
       status: 'success',

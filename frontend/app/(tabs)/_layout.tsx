@@ -101,6 +101,9 @@ export default function TabLayout() {
         headerBackVisible: false,
         tabBarStyle: {
           height: 60,
+          borderTopWidth: 0,
+          elevation: 0, // for Android
+          shadowOpacity: 0, // for iOS
         },
         headerShown: false,
       }}

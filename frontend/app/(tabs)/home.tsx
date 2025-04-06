@@ -83,11 +83,11 @@ const mockPosts: Post[] = [
   },
 ];
 
-type PostFilter = 'Community' | 'Friends' | 'All';
+type PostFilter = 'All' | 'Friends' | 'Community';
 
 export default function HomeScreen() {
   const [posts, setPosts] = useState<Post[]>(mockPosts);
-  const [filter, setFilter] = useState<PostFilter>('Community');
+  const [filter, setFilter] = useState<PostFilter>('All');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   
   const handleLike = (id: string) => {
@@ -105,8 +105,9 @@ export default function HomeScreen() {
 
   const filteredPosts = posts.filter(post => {
     if (filter === 'All') return true;
-    if (filter === 'Friends') return post.isFriend;
     if (filter === 'Community') return post.community === 'Cancer';
+    if (filter === 'Friends') return post.isFriend;
+   
     return false;
   });
   
@@ -128,7 +129,7 @@ export default function HomeScreen() {
 
         {showFilterDropdown && (
           <View style={styles.filterDropdown}>
-            {['Community', 'Friends', 'All'].map((option) => (
+            {['All', 'Friends', 'Community'].map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[styles.filterOption, filter === option && styles.filterOptionSelected]}
