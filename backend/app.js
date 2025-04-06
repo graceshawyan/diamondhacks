@@ -1,4 +1,5 @@
 import express from 'express';
+import { initializeArduino, cleanup } from './controller/arduinoController.js';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -193,13 +194,28 @@ db()
               // Setup Socket.IO after all routes are loaded
               setupSocketIO(io);
               
-              // Start the server
-              server.listen(port, () => {
-                console.log(`Server is running on port ${port}`);
-              });
-              
-              server.on('error', (error) => {
-                console.error('Server encountered an error:', error);
+              // Initialize Arduino before starting server
+              initializeArduino().then(success => {
+                if (success) {
+                  console.log('Arduino initialized successfully');
+                } else {
+                  console.warn('Failed to initialize Arduino - box control will be disabled');
+                }
+
+                // Start server
+                const server = app.listen(port, () => {
+                  console.log(`Server is running on port ${port}`);
+                });
+
+                // Cleanup on server shutdown
+                process.on('SIGTERM', async () => {
+                  console.log('SIGTERM received. Cleaning up...');
+                  await cleanup();
+                  server.close(() => {
+                    console.log('Server closed');
+                    process.exit(0);
+                  });
+                });
               });
             });
         });
