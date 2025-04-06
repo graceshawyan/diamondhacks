@@ -34,14 +34,22 @@ export default function TabLayout() {
   useEffect(() => {
     const checkUserProduct = async () => {
       try {
+        console.log('Checking user product status...');
+        
         // Get the token from AsyncStorage
         const token = await AsyncStorage.getItem('authToken');
-        if (!token) return;
+        if (!token) {
+          console.log('No auth token found');
+          return;
+        }
+        console.log('Auth token found');
         
         // Get base URL
         const baseUrl = getBaseUrl();
+        console.log('Using base URL:', baseUrl);
         
         // Fetch user info
+        console.log('Fetching user info...');
         const response = await fetch(`${baseUrl}/patient/user-info`, {
           method: 'GET',
           headers: {
@@ -49,12 +57,22 @@ export default function TabLayout() {
           }
         });
         
+        console.log('User info response status:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('User info data:', JSON.stringify(data, null, 2));
+          
           if (data.data && data.data.patient) {
             // Check if product is true
-            setShowMedsTab(data.data.patient.product === true);
+            const productStatus = data.data.patient.product === true;
+            console.log('Product status:', productStatus);
+            setShowMedsTab(productStatus);
+          } else {
+            console.log('Patient data not found in response');
           }
+        } else {
+          console.log('Failed to fetch user info');
         }
       } catch (error) {
         console.error('Error checking user product status:', error);
