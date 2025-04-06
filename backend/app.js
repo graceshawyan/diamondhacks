@@ -3,9 +3,12 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
+import { Server } from 'socket.io';
 import db from './config/db.js';
 import dotenv from 'dotenv';
 import patientRoute from './route/patientRoute.js';
+import postRoute from './route/postRoute.js';
+import communityRoute from './route/communityRoute.js';
 
 dotenv.config();
 
@@ -21,10 +24,22 @@ app.use(express.urlencoded({ extended: false }));
 // connect to frontend
 app.use(cors());
 app.use('/patient', patientRoute);
+app.use('/post', postRoute);
+app.use('/community', communityRoute);
 
 export const port = 5000;
 
 const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Export Socket.IO instance
+export { io };
+
 db()
 .then(() => {
     server.listen(port, () => {

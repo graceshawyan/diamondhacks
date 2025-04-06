@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, logout, protect, updateProfile } from '../controller/patientController.js';
+import { register, login, logout, protect, updateProfile, getUserInfo } from '../controller/patientController.js';
 
 const router = express.Router();
 
@@ -20,5 +20,11 @@ router.get('/profile', protect, (req, res) => {
 
 // Update profile route
 router.patch('/update-profile', protect, updateProfile);
+
+// Get user info route
+router.get('/user-info', protect, getUserInfo);
+
+// Get specific user info by ID
+router.get('/user-info/:id', getUserInfo);
 
 export default router;

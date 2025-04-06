@@ -1,4 +1,5 @@
-import Patient from '../models/patientModel.js';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { promisify } from 'util';
 
@@ -32,17 +33,14 @@ export const register = async (req, res) => {
       name, 
       email, 
       password, 
-      phoneNumber, 
-      dateOfBirth, 
-      medicalHistory,
-      age,
-      gender,
-      condition,
-      bio
     } = req.body;
 
+    // Connect directly to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+
     // Check if patient with email already exists
-    const existingPatient = await Patient.findOne({ email });
+    const existingPatient = await patientsCollection.findOne({ email });
     if (existingPatient) {
       return res.status(400).json({
         status: 'fail',
@@ -50,24 +48,29 @@ export const register = async (req, res) => {
       });
     }
 
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
     // Create new patient with initialized fields
-    const newPatient = await Patient.create({
+    const newPatient = {
       name,
       email,
-      password,
-      phoneNumber,
-      dateOfBirth,
-      medicalHistory,
+      password: hashedPassword,
       pfp: 'default.jpg',  // Default profile picture
       posts: [],           // Empty posts array
       followers: [],       // Empty followers array
       following: [],       // Empty following array
       communities: [],     // Empty communities array
-      age: age || null,    // Age if provided
-      gender: gender || 'prefer not to say', // Gender if provided
-      condition: condition || '',  // Condition if provided
-      bio: bio || ''       // Bio if provided
-    });
+      age: null,           // Age if provided
+      pronouns: '',
+      condition: '',       // Condition if provided
+      bio: '',             // Bio if provided
+      createdAt: new Date()
+    };
+
+    const result = await patientsCollection.insertOne(newPatient);
+    newPatient._id = result.insertedId;
+    newPatient.password = undefined; // Remove password from response
 
     createSendToken(newPatient, 201, res);
   } catch (error) {
@@ -91,10 +94,14 @@ export const login = async (req, res) => {
       });
     }
 
-    // Check if patient exists && password is correct
-    const patient = await Patient.findOne({ email }).select('+password');
+    // Connect directly to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
 
-    if (!patient || !(await patient.correctPassword(password, patient.password))) {
+    // Check if patient exists
+    const patient = await patientsCollection.findOne({ email });
+
+    if (!patient || !(await bcrypt.compare(password, patient.password))) {
       return res.status(401).json({
         status: 'fail',
         message: 'Incorrect email or password',
@@ -102,6 +109,7 @@ export const login = async (req, res) => {
     }
 
     // If everything is ok, send token to client
+    patient.password = undefined; // Remove password from response
     createSendToken(patient, 200, res);
   } catch (error) {
     res.status(500).json({
@@ -119,25 +127,67 @@ export const logout = (req, res) => {
   });
 };
 
+// Get user information (pfp, bio, age, pronouns, condition)
+export const getUserInfo = async (req, res) => {
+  try {
+    const patientId = req.params.id || req.patient._id;
+    
+    // Connect directly to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
+    // Find the patient by ID
+    const patient = await patientsCollection.findOne(
+      { _id: new mongoose.Types.ObjectId(patientId) },
+      { projection: { pfp: 1, bio: 1, age: 1, pronouns: 1, condition: 1, name: 1 } }
+    );
+    
+    if (!patient) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Patient not found',
+      });
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        patient,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+    });
+  }
+};
+
 // Update patient profile
 export const updateProfile = async (req, res) => {
   try {
-    const { pfp, bio, age, gender, condition } = req.body;
+    const { pfp, bio, age, pronouns, condition } = req.body;
     
     // Only allow specific fields to be updated
     const updateData = {};
     if (pfp) updateData.pfp = pfp;
     if (bio !== undefined) updateData.bio = bio;
     if (age !== undefined) updateData.age = age;
-    if (gender) updateData.gender = gender;
+    if (pronouns) updateData.pronouns = pronouns;
     if (condition !== undefined) updateData.condition = condition;
     
+    // Connect directly to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
     // Find and update the patient
-    const updatedPatient = await Patient.findByIdAndUpdate(
-      req.patient._id,
-      updateData,
-      { new: true, runValidators: true }
+    const result = await patientsCollection.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(req.patient._id) },
+      { $set: updateData },
+      { returnDocument: 'after' }
     );
+    
+    const updatedPatient = result.value;
     
     if (!updatedPatient) {
       return res.status(404).json({
@@ -180,7 +230,13 @@ export const protect = async (req, res, next) => {
     const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
     // 3) Check if patient still exists
-    const currentPatient = await Patient.findById(decoded.id);
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
+    const currentPatient = await patientsCollection.findOne(
+      { _id: new mongoose.Types.ObjectId(decoded.id) }
+    );
+    
     if (!currentPatient) {
       return res.status(401).json({
         status: 'fail',
