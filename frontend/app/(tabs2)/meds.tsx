@@ -280,7 +280,8 @@ export default function MedicationsScreen() {
     // Show the add medication modal
     setNewMedication({
       name: '',
-      selectedDays: [], // Default to no days selected
+      active: true, // Add the active property to match initial state
+      selectedDays: ['Monday'], // Pre-select Monday for better user experience
       timeSlots: {
         Sunday: ['8:00 AM'],
         Monday: ['8:00 AM'],
@@ -672,6 +673,10 @@ export default function MedicationsScreen() {
                     </TouchableOpacity>
                   </View>
                   
+                  <View style={styles.instructionContainer}>
+                    <Text style={styles.instructionText}>Enter medication details below and times. ClamShell will open at the set time!</Text>
+                  </View>
+                  
                   <ScrollView contentContainerStyle={styles.modalScrollContent}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Medication Name</Text>
@@ -758,7 +763,7 @@ export default function MedicationsScreen() {
                       <View key={day} style={styles.dayTimeSlotContainer}>
                         <Text style={styles.dayLabel}>{day}</Text>
                         
-                        {newMedication.timeSlots[day].map((time, index) => (
+                        {newMedication.timeSlots[day].map((time: string, index) => (
                           <View key={`${day}-${index}`} style={styles.timeSlotRow}>
                             <View style={styles.timeInputContainer}>
                               <View style={styles.timeSelectors}>
@@ -958,6 +963,20 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  instructionContainer: {
+    backgroundColor: '#f0f9ff',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0369a1',
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#0c4a6e',
+    lineHeight: 20,
   },
   modalTitle: {
     fontSize: 18,

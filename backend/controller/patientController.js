@@ -66,7 +66,7 @@ export const register = async (req, res) => {
       pronouns: '',
       condition: '',       // Condition if provided
       bio: '', 
-      product,      // Whether patient is using product
+      product: false,      // Whether patient is using product
       // Initialize empty medication schedule
       med_schedule: {},    // Structure for medication schedules
       createdAt: new Date()

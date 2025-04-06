@@ -234,7 +234,7 @@ function AboutMeContent() {
           </View>
           
           <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Are you using our product?</Text>
+            <Text style={styles.toggleLabel}>Are you using ClamShell?</Text>
             <Switch
               trackColor={{ false: '#d1d5db', true: '#0d9488' }}
               thumbColor={isUsingProduct ? '#ffffff' : '#f4f3f4'}
