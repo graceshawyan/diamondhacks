@@ -65,7 +65,7 @@ export const register = async (req, res) => {
       pronouns: '',
       condition: '',       // Condition if provided
       bio: '', 
-      product,      // Whether patient is using product
+      product: false,     // Whether patient is using product (default: false)
       // Initialize empty medication schedule
       med_schedule: {},    // Structure for medication schedules
       createdAt: new Date()
@@ -265,6 +265,7 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message,
+    });
   }
   
   // Handle profile picture upload if present
@@ -315,13 +316,6 @@ export const updateProfile = async (req, res) => {
       patient: updatedPatient,
     },
   });
-} catch (error) {
-  console.error('Profile update error:', error);
-  res.status(500).json({
-    status: 'error',
-    message: error.message,
-  });
-}
 };
 
 // Protect routes - middleware to check if user is logged in
