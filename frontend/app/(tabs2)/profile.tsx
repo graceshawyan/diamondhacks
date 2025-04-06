@@ -185,13 +185,22 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.profileBox}>
-          <Image 
-            source={{ 
-              uri: userData?.pfp ? `${getBaseUrl()}/${userData.pfp}` : DEFAULT_AVATAR 
-            }} 
-            style={styles.avatar} 
-          />
-          <Text style={styles.username}>@{userData?.name || 'username'}</Text>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ uri: userData?.pfp ? `${getBaseUrl()}/${userData.pfp}` : DEFAULT_AVATAR }}
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+            <TouchableOpacity 
+              style={styles.avatarEditButton}
+              onPress={() => {
+                setShowSettings(true);
+              }}
+            >
+              <Ionicons name="pencil" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.username}>{userData?.name || 'User'}</Text>
 
           <View style={styles.statsContainer}>
             <View style={styles.statRow}>
@@ -477,6 +486,32 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
     marginBottom: 12,
+  },
+  avatarContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    marginBottom: 16,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  avatarEditButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#0d9488',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   username: {
     fontSize: 18,

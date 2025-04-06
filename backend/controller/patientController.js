@@ -265,20 +265,119 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message,
+  }
+  
+  // Handle profile picture upload if present
+  if (req.file) {
+    // Store the image data in MongoDB
+    updateData.pfp = {
+      data: req.file.buffer.toString('base64'),
+      contentType: req.file.mimetype,
+      filename: req.file.originalname
+    };
+  }
+  
+  // Connect directly to the patients collection
+  const db = mongoose.connection.db;
+  const patientsCollection = db.collection('patients');
+  
+  // Log the patient ID for debugging
+  console.log('Updating profile for patient ID:', req.patient._id);
+  
+  // Find and update the patient
+  const result = await patientsCollection.findOneAndUpdate(
+    { _id: new mongoose.Types.ObjectId(req.patient._id) },
+    { $set: updateData },
+    { returnDocument: 'after' }
+  );
+  
+  const updatedPatient = result.value || result;
+  
+  if (!updatedPatient) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Patient not found',
     });
   }
+  
+  // Don't send the full profile picture data back in the response
+  if (updatedPatient.pfp && updatedPatient.pfp.data) {
+    updatedPatient.pfp = {
+      contentType: updatedPatient.pfp.contentType,
+      filename: updatedPatient.pfp.filename,
+      _id: updatedPatient.pfp._id
+    };
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      patient: updatedPatient,
+    },
+  });
+} catch (error) {
+  console.error('Profile update error:', error);
+  res.status(500).json({
+    status: 'error',
+    message: error.message,
+  });
+}
 };
 
 // Protect routes - middleware to check if user is logged in
+// Format medication data from API to display format
+const formatMedicationData = (medSchedule) => {
+  if (!medSchedule) return [];
+  
+  const formatted = [];
+  let id = 1;
+  
+  Object.entries(medSchedule).forEach(([name, medData]) => {
+    // Extract active status and schedule from medication data
+    const active = medData.active !== undefined ? medData.active : true;
+    const schedule = medData.schedule || {};
+    
+    // Create human-readable frequency and time strings
+    const days = Object.keys(schedule);
+    const times = new Set();
+    
+    days.forEach(day => {
+      schedule[day].forEach(time => {
+        times.add(time);
+      });
+    });
+    
+    let frequency;
+    if (days.length === 7) {
+      frequency = 'Daily';
+    } else if (days.length === 1) {
+      frequency = `Every ${days[0]}`;
+    } else {
+      frequency = `${days.join(', ')}`;
+    }
+    
+    formatted.push({
+      id: String(id++),
+      name,
+      frequency,
+      time: Array.from(times).join(', '),
+      active: active,
+      rawSchedule: schedule // Keep original schedule for edits
+    });
+  });
+  
+  return formatted;
+};
+
 // Add medication to schedule
 export const addMedication = async (req, res) => {
   try {
-    const { medicationName, schedule } = req.body;
+    const { name, active, timeSlots } = req.body;
     
-    if (!medicationName || !schedule) {
+    if (!name || !timeSlots) {
       return res.status(400).json({
         status: 'fail',
-        message: 'Please provide medication name and schedule',
+        message: 'Please provide medication name and time slots',
       });
     }
     
@@ -286,10 +385,16 @@ export const addMedication = async (req, res) => {
     const db = mongoose.connection.db;
     const patientsCollection = db.collection('patients');
     
+    // Create the medication entry with the new format
+    const medicationEntry = {
+      active: active !== undefined ? active : true, // Default to active if not provided
+      schedule: timeSlots
+    };
+    
     // Create the med_schedule path update
-    const updatePath = `med_schedule.${medicationName}`;
+    const updatePath = `med_schedule.${name}`;
     const updateObj = {};
-    updateObj[updatePath] = schedule;
+    updateObj[updatePath] = medicationEntry;
     
     // Update the patient's medication schedule
     const result = await patientsCollection.findOneAndUpdate(

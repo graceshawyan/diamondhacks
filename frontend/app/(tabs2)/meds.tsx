@@ -14,11 +14,11 @@ import {
   Animated,
   TouchableWithoutFeedback,
   Keyboard,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 // Get the appropriate base URL depending on the platform
 const getBaseUrl = (): string => {
@@ -82,33 +82,80 @@ export default function MedicationsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);  // Initialize with default time slots
   const [newMedication, setNewMedication] = useState({
     name: '',
+    active: true, // Default to active medication
     selectedDays: [], // Default to no days selected
     timeSlots: {
-      Sunday: ['8:00 AM'],
-      Monday: ['8:00 AM'],
-      Tuesday: ['8:00 AM'],
-      Wednesday: ['8:00 AM'],
-      Thursday: ['8:00 AM'],
-      Friday: ['8:00 AM'],
-      Saturday: ['8:00 AM']
+      Sunday: ['08:00 AM'],
+      Monday: ['08:00 AM'],
+      Tuesday: ['08:00 AM'],
+      Wednesday: ['08:00 AM'],
+      Thursday: ['08:00 AM'],
+      Friday: ['08:00 AM'],
+      Saturday: ['08:00 AM']
     }
   });
   
   // Time picker state
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentDay, setCurrentDay] = useState('');
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
-  const [selectedHour, setSelectedHour] = useState(8);
-  const [selectedMinute, setSelectedMinute] = useState(0);
-  const [selectedAmPm, setSelectedAmPm] = useState('AM');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTimeSelectModal, setShowTimeSelectModal] = useState(false);
+  
+  // Time selection options
+  const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
+  const minutes = ['00', '15', '30', '45'];
+  const periods = ['AM', 'PM'];
   
   // Animation for the modal
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Format raw medication data from API
+  const processMedicationData = (medSchedule) => {
+    if (!medSchedule) return [];
+    
+    const formatted = [];
+    let id = 1;
+    
+    Object.entries(medSchedule).forEach(([name, medData]) => {
+      // Extract active status and schedule from medication data
+      const active = medData.active !== undefined ? medData.active : true;
+      const schedule = medData.schedule || {};
+      
+      // Create human-readable frequency and time strings
+      const days = Object.keys(schedule);
+      const times = new Set();
+      
+      days.forEach(day => {
+        schedule[day].forEach(time => {
+          times.add(time);
+        });
+      });
+      
+      let frequency;
+      if (days.length === 7) {
+        frequency = 'Daily';
+      } else if (days.length === 1) {
+        frequency = `Every ${days[0]}`;
+      } else {
+        frequency = `${days.join(', ')}`;
+      }
+      
+      formatted.push({
+        id: String(id++),
+        name,
+        frequency,
+        time: Array.from(times).join(', '),
+        active: active,
+        rawSchedule: schedule // Keep original schedule for edits
+      });
+    });
+    
+    return formatted;
+  };
+  
   // Fetch medications from API
   useEffect(() => {
     const fetchMedications = async () => {
@@ -128,7 +175,7 @@ export default function MedicationsScreen() {
         const baseUrl = getBaseUrl();
         
         // Fetch medication schedule
-        const response = await fetch(`${baseUrl}/medications`, {
+        const response = await fetch(`${baseUrl}/patient/medications`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -143,7 +190,7 @@ export default function MedicationsScreen() {
           console.log('Medication data:', JSON.stringify(data, null, 2));
           
           if (data.data && data.data.med_schedule && Object.keys(data.data.med_schedule).length > 0) {
-            const formattedMeds = formatMedicationData(data.data.med_schedule);
+            const formattedMeds = processMedicationData(data.data.med_schedule);
             setMedications(formattedMeds);
           } else {
             // Empty medication list
@@ -166,11 +213,56 @@ export default function MedicationsScreen() {
     med.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const toggleMedicationStatus = (id) => {
-    setMedications(medications.map(med => 
-      med.id === id ? { ...med, active: !med.active } : med
-    ));
-    // In a real app, we would sync this change with the backend
+  // Toggle medication status (active/inactive)
+  const toggleMedicationStatus = async (id) => {
+    // Find the medication to toggle
+    const medication = medications.find(med => med.id === id);
+    if (!medication) return;
+    
+    // Update local state first for immediate feedback
+    const updatedMedications = medications.map(med => {
+      if (med.id === id) {
+        return { ...med, active: !med.active };
+      }
+      return med;
+    });
+    setMedications(updatedMedications);
+    
+    try {
+      // Get auth token
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setError('Authentication token not found');
+        return;
+      }
+      
+      // Get base URL
+      const baseUrl = getBaseUrl();
+      
+      // Prepare updated medication data
+      const updatedMedData = {
+        name: medication.name,
+        active: !medication.active,
+        timeSlots: medication.rawSchedule
+      };
+      
+      // Send update to backend
+      await fetch(`${baseUrl}/patient/medications`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedMedData)
+      });
+      
+      // No need to update state again as we already did it above
+    } catch (error) {
+      console.error('Error toggling medication status:', error);
+      // Revert the local change if the API call failed
+      setMedications(medications);
+      Alert.alert('Error', 'Failed to update medication status');
+    }
   };
 
   const addMedication = () => {
@@ -230,30 +322,28 @@ export default function MedicationsScreen() {
       // Get base URL
       const baseUrl = getBaseUrl();
       
-      // Format medication data for API
+      // Format medication data for API in the improved format
       const medData = {
         name: newMedication.name,
-        days: newMedication.selectedDays,
-        times: {}
+        active: newMedication.active
       };
+      
+      // Create a map with days as keys and time arrays as values
+      const timeMap = {};
       
       // Add times for each selected day
       newMedication.selectedDays.forEach(day => {
-        // Format times to ensure they're in the correct format
-        const formattedTimes = newMedication.timeSlots[day].map(time => {
-          // Make sure time is properly formatted
-          const [timePart, period] = time.split(' ');
-          const [hours, minutes] = timePart.split(':');
-          return `${hours}:${minutes} ${period}`;
-        });
-        
-        medData.times[day] = formattedTimes;
+        // Use the time slots as they are - they're already in the correct format
+        timeMap[day] = newMedication.timeSlots[day];
       });
+      
+      // Add the time map to the medication data
+      medData.timeSlots = timeMap;
       
       console.log('Sending medication data:', JSON.stringify(medData, null, 2));
       
       // Send to API
-      const response = await fetch(`${baseUrl}/medications`, {
+      const response = await fetch(`${baseUrl}/patient/medications`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -272,12 +362,24 @@ export default function MedicationsScreen() {
         // Show success message
         Alert.alert('Success', 'Medication added successfully');
       } else {
-        const errorData = await response.json();
-        Alert.alert('Error', errorData.message || 'Failed to add medication');
+        // Get response text first to diagnose issues
+        const responseText = await response.text();
+        console.error('Error response:', responseText);
+        
+        // Try to parse as JSON if possible
+        try {
+          const errorData = JSON.parse(responseText);
+          Alert.alert('Error', errorData.message || 'Failed to add medication');
+        } catch (parseError) {
+          // If not valid JSON, show the response status
+          Alert.alert('Error', `Server error (${response.status}): Unable to add medication`);
+        }
       }
     } catch (error) {
       console.error('Error adding medication:', error);
-      Alert.alert('Error', 'An error occurred while adding the medication');
+      // More descriptive error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert('Error', `Failed to add medication: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -309,7 +411,7 @@ export default function MedicationsScreen() {
               }
               
               const baseUrl = getBaseUrl();
-              const response = await fetch(`${baseUrl}/medications/${encodeURIComponent(medication.name)}`, {
+              const response = await fetch(`${baseUrl}/patient/medications/${encodeURIComponent(medication.name)}`, {
                 method: 'DELETE',
                 headers: {
                   'Authorization': `Bearer ${token}`,
@@ -484,106 +586,54 @@ export default function MedicationsScreen() {
       </ScrollView>
       
       {/* Add Medication Modal */}
-      {/* Time Picker Modal */}
+      {/* Time Selection Modal */}
       <Modal
         animationType="slide"
         transparent={true}
-        visible={showTimePicker}
-        onRequestClose={() => setShowTimePicker(false)}
+        visible={showTimeSelectModal}
+        onRequestClose={() => setShowTimeSelectModal(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setShowTimePicker(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowTimeSelectModal(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.timePickerContainer}>
-                <View style={styles.timePickerHeader}>
-                  <Text style={styles.timePickerTitle}>Select Time</Text>
-                  <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+              <View style={styles.timeSelectModalContainer}>
+                <View style={styles.timeSelectModalHeader}>
+                  <Text style={styles.timeSelectModalTitle}>Select Time</Text>
+                  <TouchableOpacity onPress={() => setShowTimeSelectModal(false)}>
                     <Ionicons name="close" size={24} color="#111827" />
                   </TouchableOpacity>
                 </View>
                 
-                <View style={styles.timePickerContent}>
-                  {/* Hours Picker */}
-                  <View style={styles.pickerColumn}>
-                    <ScrollView 
-                      showsVerticalScrollIndicator={false}
-                      contentContainerStyle={styles.pickerScrollContent}
-                    >
-                      {Array.from({length: 12}, (_, i) => (i === 0 ? 12 : i)).map(hour => (
-                        <TouchableOpacity 
-                          key={`hour-${hour}`}
-                          style={[styles.pickerItem, selectedHour === hour && styles.selectedPickerItem]}
-                          onPress={() => setSelectedHour(hour)}
-                        >
-                          <Text style={[styles.pickerItemText, selectedHour === hour && styles.selectedPickerItemText]}>
-                            {hour}
-                          </Text>
-                        </TouchableOpacity>
+                <ScrollView style={styles.timeSelectModalList}>
+                  {hours.map((hour) => (
+                    <View key={hour} style={styles.timeGroupContainer}>
+                      <Text style={styles.timeGroupHeader}>{hour}</Text>
+                      {minutes.map((minute) => (
+                        <View key={`${hour}-${minute}`} style={styles.hourPeriodContainer}>
+                          {periods.map((period) => (
+                            <TouchableOpacity
+                              key={`${hour}-${minute}-${period}`}
+                              style={styles.timeSelectOption}
+                              onPress={() => {
+                                // Update the time slot
+                                const timeOption = `${hour}:${minute} ${period}`;
+                                const updatedTimeSlots = {...newMedication.timeSlots};
+                                updatedTimeSlots[currentDay][currentTimeIndex] = timeOption;
+                                setNewMedication({
+                                  ...newMedication,
+                                  timeSlots: updatedTimeSlots
+                                });
+                                setShowTimeSelectModal(false);
+                              }}
+                            >
+                              <Text style={styles.timeSelectOptionText}>{`${hour}:${minute} ${period}`}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       ))}
-                    </ScrollView>
-                  </View>
-                  
-                  <Text style={styles.pickerSeparator}>:</Text>
-                  
-                  {/* Minutes Picker */}
-                  <View style={styles.pickerColumn}>
-                    <ScrollView 
-                      showsVerticalScrollIndicator={false}
-                      contentContainerStyle={styles.pickerScrollContent}
-                    >
-                      {[0, 30].map(minute => (
-                        <TouchableOpacity 
-                          key={`minute-${minute}`}
-                          style={[styles.pickerItem, selectedMinute === minute && styles.selectedPickerItem]}
-                          onPress={() => setSelectedMinute(minute)}
-                        >
-                          <Text style={[styles.pickerItemText, selectedMinute === minute && styles.selectedPickerItemText]}>
-                            {minute.toString().padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                  
-                  {/* AM/PM Picker */}
-                  <View style={styles.amPmContainer}>
-                    <TouchableOpacity 
-                      style={[styles.amPmButton, selectedAmPm === 'AM' && styles.selectedAmPm]}
-                      onPress={() => setSelectedAmPm('AM')}
-                    >
-                      <Text style={[styles.amPmText, selectedAmPm === 'AM' && styles.selectedAmPmText]}>AM</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.amPmButton, selectedAmPm === 'PM' && styles.selectedAmPm]}
-                      onPress={() => setSelectedAmPm('PM')}
-                    >
-                      <Text style={[styles.amPmText, selectedAmPm === 'PM' && styles.selectedAmPmText]}>PM</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.timePickerConfirmButton}
-                  onPress={() => {
-                    // Format the time string
-                    const formattedHour = selectedHour; // No need to pad since we're using 12-hour format
-                    const formattedMinute = selectedMinute.toString().padStart(2, '0');
-                    const timeString = `${formattedHour}:${formattedMinute} ${selectedAmPm}`;
-                    
-                    // Update the time slot
-                    const updatedTimeSlots = {...newMedication.timeSlots};
-                    updatedTimeSlots[currentDay][currentTimeIndex] = timeString;
-                    setNewMedication({
-                      ...newMedication,
-                      timeSlots: updatedTimeSlots
-                    });
-                    
-                    // Close the time picker
-                    setShowTimePicker(false);
-                  }}
-                >
-                  <Text style={styles.timePickerConfirmText}>Confirm</Text>
-                </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -632,8 +682,25 @@ export default function MedicationsScreen() {
                       />
                     </View>
                     
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Select Days</Text>
+                    <View style={styles.formGroup}>
+                      <View style={styles.activeToggleContainer}>
+                        <Text style={styles.formLabel}>Active</Text>
+                        <Switch
+                          value={newMedication.active}
+                          onValueChange={(value) => {
+                            setNewMedication({
+                              ...newMedication,
+                              active: value
+                            });
+                          }}
+                          trackColor={{ false: '#d1d5db', true: '#10b981' }}
+                          thumbColor={newMedication.active ? '#ffffff' : '#f3f4f6'}
+                        />
+                      </View>
+                    </View>
+                    
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>Select Days</Text>
                       <View style={styles.dayCirclesContainer}>
                         {[
                           { day: 'Sunday', short: 'S' },
@@ -692,31 +759,118 @@ export default function MedicationsScreen() {
                         
                         {newMedication.timeSlots[day].map((time, index) => (
                           <View key={`${day}-${index}`} style={styles.timeSlotRow}>
+                            <View style={styles.timeInputContainer}>
+                              <View style={styles.timeSelectors}>
+                                <View style={styles.hourSelector}>
                                   <TouchableOpacity 
-                              style={styles.timeInput}
-                              onPress={() => {
-                                // Parse current time to set initial values for picker
-                                const [timePart, period] = time.split(' ');
-                                let [hours, minutes] = timePart.split(':').map(num => parseInt(num, 10));
+                                    style={styles.timeSelectButton}
+                                    onPress={() => {
+                                      const currentHour = parseInt(time?.split(':')[0] || '12');
+                                      const newHour = currentHour === 12 ? 1 : currentHour + 1;
+                                      const currentMinute = time?.split(':')[1]?.split(' ')[0] || '00';
+                                      const period = time?.includes('PM') ? 'PM' : 'AM';
+                                      const updatedTimeSlots = {...newMedication.timeSlots};
+                                      updatedTimeSlots[day][index] = `${newHour.toString().padStart(2, '0')}:${currentMinute} ${period}`;
+                                      setNewMedication({
+                                        ...newMedication,
+                                        timeSlots: updatedTimeSlots
+                                      });
+                                    }}
+                                  >
+                                    <Ionicons name="chevron-up" size={16} color="#6b7280" />
+                                  </TouchableOpacity>
+                                  
+                                  <Text style={styles.timeText}>{time?.split(':')[0] || '12'}</Text>
+                                  
+                                  <TouchableOpacity 
+                                    style={styles.timeSelectButton}
+                                    onPress={() => {
+                                      const currentHour = parseInt(time?.split(':')[0] || '12');
+                                      const newHour = currentHour === 1 ? 12 : currentHour - 1;
+                                      const currentMinute = time?.split(':')[1]?.split(' ')[0] || '00';
+                                      const period = time?.includes('PM') ? 'PM' : 'AM';
+                                      const updatedTimeSlots = {...newMedication.timeSlots};
+                                      updatedTimeSlots[day][index] = `${newHour.toString().padStart(2, '0')}:${currentMinute} ${period}`;
+                                      setNewMedication({
+                                        ...newMedication,
+                                        timeSlots: updatedTimeSlots
+                                      });
+                                    }}
+                                  >
+                                    <Ionicons name="chevron-down" size={16} color="#6b7280" />
+                                  </TouchableOpacity>
+                                </View>
                                 
-                                // Ensure hours is in 12-hour format for the picker
-                                if (hours > 12) {
-                                  hours = hours - 12;
-                                } else if (hours === 0) {
-                                  hours = 12;
-                                }
+                                <Text style={styles.timeSeparator}>:</Text>
                                 
-                                setSelectedHour(hours);
-                                setSelectedMinute(minutes || 0);
-                                setSelectedAmPm(period || 'AM');
-                                setCurrentDay(day);
-                                setCurrentTimeIndex(index);
-                                setShowTimePicker(true);
-                              }}
-                            >
-                              <Text style={styles.timeInputText}>{time}</Text>
-                              <Ionicons name="time-outline" size={20} color="#6b7280" />
-                            </TouchableOpacity>
+                                <View style={styles.minuteSelector}>
+                                  <TouchableOpacity 
+                                    style={styles.timeSelectButton}
+                                    onPress={() => {
+                                      const hour = time?.split(':')[0] || '12';
+                                      const currentMinute = time?.split(':')[1]?.split(' ')[0] || '00';
+                                      const period = time?.includes('PM') ? 'PM' : 'AM';
+                                      
+                                      // Get next minute in 15-minute increments
+                                      let minuteIndex = minutes.indexOf(currentMinute);
+                                      minuteIndex = (minuteIndex + 1) % minutes.length;
+                                      const newMinute = minutes[minuteIndex];
+                                      
+                                      const updatedTimeSlots = {...newMedication.timeSlots};
+                                      updatedTimeSlots[day][index] = `${hour}:${newMinute} ${period}`;
+                                      setNewMedication({
+                                        ...newMedication,
+                                        timeSlots: updatedTimeSlots
+                                      });
+                                    }}
+                                  >
+                                    <Ionicons name="chevron-up" size={16} color="#6b7280" />
+                                  </TouchableOpacity>
+                                  
+                                  <Text style={styles.timeText}>{time?.split(':')[1]?.split(' ')[0] || '00'}</Text>
+                                  
+                                  <TouchableOpacity 
+                                    style={styles.timeSelectButton}
+                                    onPress={() => {
+                                      const hour = time?.split(':')[0] || '12';
+                                      const currentMinute = time?.split(':')[1]?.split(' ')[0] || '00';
+                                      const period = time?.includes('PM') ? 'PM' : 'AM';
+                                      
+                                      // Get previous minute in 15-minute increments
+                                      let minuteIndex = minutes.indexOf(currentMinute);
+                                      minuteIndex = (minuteIndex - 1 + minutes.length) % minutes.length;
+                                      const newMinute = minutes[minuteIndex];
+                                      
+                                      const updatedTimeSlots = {...newMedication.timeSlots};
+                                      updatedTimeSlots[day][index] = `${hour}:${newMinute} ${period}`;
+                                      setNewMedication({
+                                        ...newMedication,
+                                        timeSlots: updatedTimeSlots
+                                      });
+                                    }}
+                                  >
+                                    <Ionicons name="chevron-down" size={16} color="#6b7280" />
+                                  </TouchableOpacity>
+                                </View>
+                                
+                                <TouchableOpacity 
+                                  style={styles.periodSelector}
+                                  onPress={() => {
+                                    const hour = time?.split(':')[0] || '12';
+                                    const currentPeriod = time?.includes('PM') ? 'PM' : 'AM';
+                                    const newPeriod = currentPeriod === 'AM' ? 'PM' : 'AM';
+                                    const updatedTimeSlots = {...newMedication.timeSlots};
+                                    updatedTimeSlots[day][index] = `${hour}:00 ${newPeriod}`;
+                                    setNewMedication({
+                                      ...newMedication,
+                                      timeSlots: updatedTimeSlots
+                                    });
+                                  }}
+                                >
+                                  <Text style={styles.periodText}>{time?.includes('PM') ? 'PM' : 'AM'}</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
                             
                             {/* Remove time slot button */}
                             {newMedication.timeSlots[day].length > 1 && (
@@ -815,8 +969,14 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     padding: 16,
   },
-  inputGroup: {
-    marginBottom: 16,
+  formGroup: {
+    marginBottom: 20,
+  },
+  activeToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   inputLabel: {
     fontSize: 16,
@@ -880,17 +1040,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  timeInput: {
+  timeInputContainer: {
     flex: 1,
+    marginRight: 8,
+  },
+  timeSelectors: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  hourSelector: {
     alignItems: 'center',
+  },
+  minuteSelector: {
+    alignItems: 'center',
+  },
+  timeSelectButton: {
+    padding: 4,
+  },
+  timeText: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
+    marginVertical: 2,
+  },
+  timeSeparator: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
+    marginHorizontal: 4,
+  },
+  periodSelector: {
+    marginLeft: 8,
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  periodText: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
   },
   timeInputText: {
     fontSize: 16,
@@ -913,17 +1108,15 @@ const styles = StyleSheet.create({
   },
   
   /* Time Picker Styles */
-  timePickerContainer: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 30,
+  timeSelectModalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+    width: '100%',
+    maxHeight: '80%',
   },
-  timePickerHeader: {
+  timeSelectModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -931,85 +1124,40 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  timePickerTitle: {
+  timeSelectModalTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#111827',
   },
-  timePickerContent: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+  timeSelectModalList: {
+    maxHeight: 400,
   },
-  pickerColumn: {
-    height: 200,
-    width: 60,
-    overflow: 'hidden',
+  timeGroupContainer: {
+    marginBottom: 16,
   },
-  pickerScrollContent: {
-    paddingVertical: 80, // Add padding to center the selected item
-  },
-  pickerItem: {
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  selectedPickerItem: {
-    backgroundColor: '#f0fdfa',
-    borderRadius: 8,
-  },
-  pickerItemText: {
-    fontSize: 22,
-    color: '#4b5563',
-  },
-  selectedPickerItemText: {
-    color: '#0d9488',
-    fontWeight: '600',
-  },
-  pickerSeparator: {
-    fontSize: 24,
+  timeGroupHeader: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#374151',
-    marginHorizontal: 8,
-  },
-  amPmContainer: {
-    marginLeft: 16,
-    height: 100,
-    justifyContent: 'center',
-  },
-  amPmButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    color: '#4b5563',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     backgroundColor: '#f9fafb',
   },
-  selectedAmPm: {
-    backgroundColor: '#0d9488',
+  hourPeriodContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  amPmText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#4b5563',
-  },
-  selectedAmPmText: {
-    color: 'white',
-  },
-  timePickerConfirmButton: {
-    backgroundColor: '#0d9488',
-    marginHorizontal: 16,
+  timeSelectOption: {
     paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    flex: 1,
+    marginHorizontal: 2,
   },
-  timePickerConfirmText: {
-    color: 'white',
+  timeSelectOptionText: {
     fontSize: 16,
-    fontWeight: '600',
+    color: '#111827',
   },
   submitButton: {
     backgroundColor: '#0d9488',
