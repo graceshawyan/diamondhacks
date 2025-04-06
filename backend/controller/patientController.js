@@ -64,7 +64,10 @@ export const register = async (req, res) => {
       age: null,           // Age if provided
       pronouns: '',
       condition: '',       // Condition if provided
-      bio: '',             // Bio if provided
+      bio: '', 
+      product: false,      // Whether patient is using product
+      // Initialize empty medication schedule
+      med_schedule: {},    // Structure for medication schedules
       createdAt: new Date()
     };
 
@@ -166,19 +169,32 @@ export const getUserInfo = async (req, res) => {
 // Update patient profile
 export const updateProfile = async (req, res) => {
   try {
-    const { pfp, bio, age, pronouns, condition } = req.body;
+    const { bio, age, pronouns, condition, product } = req.body;
     
     // Only allow specific fields to be updated
     const updateData = {};
-    if (pfp) updateData.pfp = pfp;
     if (bio !== undefined) updateData.bio = bio;
     if (age !== undefined) updateData.age = age;
     if (pronouns) updateData.pronouns = pronouns;
     if (condition !== undefined) updateData.condition = condition;
+    if (product !== undefined) updateData.product = product === 'true' || product === true;
+    
+    // Handle profile picture upload if present
+    if (req.file) {
+      // Store the image data in MongoDB
+      updateData.pfp = {
+        data: req.file.buffer.toString('base64'),
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      };
+    }
     
     // Connect directly to the patients collection
     const db = mongoose.connection.db;
     const patientsCollection = db.collection('patients');
+    
+    // Log the patient ID for debugging
+    console.log('Updating profile for patient ID:', req.patient._id);
     
     // Find and update the patient
     const result = await patientsCollection.findOneAndUpdate(
@@ -187,7 +203,69 @@ export const updateProfile = async (req, res) => {
       { returnDocument: 'after' }
     );
     
-    const updatedPatient = result.value;
+    const updatedPatient = result.value || result;
+    
+    if (!updatedPatient) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Patient not found',
+      });
+    }
+    
+    // Don't send the full profile picture data back in the response
+    if (updatedPatient.pfp && updatedPatient.pfp.data) {
+      updatedPatient.pfp = {
+        contentType: updatedPatient.pfp.contentType,
+        filename: updatedPatient.pfp.filename,
+        _id: updatedPatient.pfp._id
+      };
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        patient: updatedPatient,
+      },
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+    });
+  }
+};
+
+// Protect routes - middleware to check if user is logged in
+// Add medication to schedule
+export const addMedication = async (req, res) => {
+  try {
+    const { medicationName, schedule } = req.body;
+    
+    if (!medicationName || !schedule) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Please provide medication name and schedule',
+      });
+    }
+    
+    // Connect to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
+    // Create the med_schedule path update
+    const updatePath = `med_schedule.${medicationName}`;
+    const updateObj = {};
+    updateObj[updatePath] = schedule;
+    
+    // Update the patient's medication schedule
+    const result = await patientsCollection.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(req.patient._id) },
+      { $set: updateObj },
+      { returnDocument: 'after' }
+    );
+    
+    const updatedPatient = result.value || result;
     
     if (!updatedPatient) {
       return res.status(404).json({
@@ -199,10 +277,11 @@ export const updateProfile = async (req, res) => {
     res.status(200).json({
       status: 'success',
       data: {
-        patient: updatedPatient,
+        med_schedule: updatedPatient.med_schedule,
       },
     });
   } catch (error) {
+    console.error('Add medication error:', error);
     res.status(500).json({
       status: 'error',
       message: error.message,
@@ -210,7 +289,93 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Protect routes - middleware to check if user is logged in
+// Remove medication from schedule
+export const removeMedication = async (req, res) => {
+  try {
+    const { medicationName } = req.params;
+    
+    if (!medicationName) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Please provide medication name',
+      });
+    }
+    
+    // Connect to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
+    // Create the med_schedule path to unset
+    const updatePath = `med_schedule.${medicationName}`;
+    const updateObj = {};
+    updateObj[updatePath] = '';
+    
+    // Update the patient's medication schedule
+    const result = await patientsCollection.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(req.patient._id) },
+      { $unset: updateObj },
+      { returnDocument: 'after' }
+    );
+    
+    const updatedPatient = result.value || result;
+    
+    if (!updatedPatient) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Patient not found',
+      });
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        med_schedule: updatedPatient.med_schedule,
+      },
+    });
+  } catch (error) {
+    console.error('Remove medication error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+    });
+  }
+};
+
+// Get medication schedule
+export const getMedicationSchedule = async (req, res) => {
+  try {
+    // Connect to the patients collection
+    const db = mongoose.connection.db;
+    const patientsCollection = db.collection('patients');
+    
+    // Find the patient
+    const patient = await patientsCollection.findOne(
+      { _id: new mongoose.Types.ObjectId(req.patient._id) },
+      { projection: { med_schedule: 1 } }
+    );
+    
+    if (!patient) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Patient not found',
+      });
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        med_schedule: patient.med_schedule || {},
+      },
+    });
+  } catch (error) {
+    console.error('Get medication schedule error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+    });
+  }
+};
+
 export const protect = async (req, res, next) => {
   try {
     // 1) Get token and check if it exists
@@ -225,17 +390,31 @@ export const protect = async (req, res, next) => {
         message: 'You are not logged in. Please log in to get access.',
       });
     }
+    
+    console.log('Received token:', token);
 
     // 2) Verify token
     const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    console.log('Decoded token ID:', decoded.id);
 
     // 3) Check if patient still exists
     const db = mongoose.connection.db;
     const patientsCollection = db.collection('patients');
     
-    const currentPatient = await patientsCollection.findOne(
-      { _id: new mongoose.Types.ObjectId(decoded.id) }
-    );
+    // Make sure we're using a valid ObjectId
+    let patientId;
+    try {
+      patientId = new mongoose.Types.ObjectId(decoded.id);
+    } catch (error) {
+      console.error('Invalid ObjectId format:', error);
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Invalid token format',
+      });
+    }
+    
+    const currentPatient = await patientsCollection.findOne({ _id: patientId });
+    console.log('Found patient:', currentPatient ? 'Yes' : 'No');
     
     if (!currentPatient) {
       return res.status(401).json({

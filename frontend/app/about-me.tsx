@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Switch, Platform, BackHandler } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,44 +12,146 @@ export default function AboutMeScreen() {
     <>
       <Stack.Screen options={{ 
         gestureEnabled: false,
-        headerShown: false
+        headerShown: false,
+        // Prevent going back with the hardware back button
+        headerBackVisible: false,
+        // Prevent going back with swipe gesture
+        animation: 'none'
       }} />
       <AboutMeContent />
     </>
   );
 }
 
+// Get the appropriate base URL depending on the platform
+const getBaseUrl = (): string => {
+  if (__DEV__) {
+    if (Platform.OS === 'android') {
+      // Use actual IP address for Expo Go
+      return 'http://172.20.10.6:5000';
+    } else if (Platform.OS === 'ios') {
+      // Use actual IP address for iOS 
+      return 'http://172.20.10.6:5000';
+    } else {
+      return 'http://localhost:5000'; // Web
+    }
+  }
+  // Return production URL if not in development
+  return 'https://your-production-server.com';
+};
+
 function AboutMeContent() {
+  const [age, setAge] = useState('');
   const [pronouns, setPronouns] = useState('');
   const [condition, setCondition] = useState('');
   const [bio, setBio] = useState('');
+  const [isUsingProduct, setIsUsingProduct] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Prevent going back with hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => backHandler.remove();
+  }, []);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    // Reset error message
+    setErrorMessage('');
+    
     if (!condition) {
-      alert('Please select your condition');
+      setErrorMessage('Please enter what you\'re recovering from');
+      return;
+    }
+    if (!pronouns) {
+      setErrorMessage('Please enter your pronouns');
+      return;
+    }
+    if (!age) {
+      setErrorMessage('Please enter your age');
+      return;
+    }
+    
+    // Validate age is a number and 18+
+    const ageNum = parseInt(age, 10);
+    if (isNaN(ageNum) || ageNum < 18) {
+      setErrorMessage('You must be 18 or older to use this app');
       return;
     }
 
     setIsLoading(true);
     
-    // This would be replaced with actual API call to update profile
-    setTimeout(() => {
+    try {
+      // Get the token from AsyncStorage
+      const token = await AsyncStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      // Call the backend API to update the profile
+      const response = await fetch(`${getBaseUrl()}/patient/update-profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          age: parseInt(age, 10),
+          pronouns,
+          condition,
+          bio,
+          product: isUsingProduct
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update profile');
+      }
+      
+      // Navigate to home page
       router.replace('/(tabs)/home');
+    } catch (error) {
+      console.error('Profile update error:', error);
+      setErrorMessage('Failed to update profile. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>        
+        <View style={styles.header}>
+          <Text style={styles.title}>Tell us about yourself!</Text>
+        </View>
+        
         <View style={styles.form}>
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Pronouns</Text>
+            <Text style={styles.label}>Age*</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your pronouns (optional)"
+                placeholder="Enter your age (must be 18+)"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                value={age}
+                onChangeText={setAge}
+              />
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Pronouns*</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your pronouns"
                 placeholderTextColor="#9ca3af"
                 value={pronouns}
                 onChangeText={setPronouns}
@@ -57,11 +160,19 @@ function AboutMeContent() {
           </View>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Condition</Text>
+            <View style={styles.labelContainer}>
+              <Text style={styles.label}>Recovering From*</Text>
+              <TouchableOpacity 
+                onPress={() => alert('You may list multiple conditions separated by commas')}
+                style={styles.helpIcon}
+              >
+                <Ionicons name="help-circle-outline" size={18} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your condition"
+                placeholder="Enter what you are recovering from"
                 placeholderTextColor="#9ca3af"
                 value={condition}
                 onChangeText={setCondition}
@@ -73,13 +184,24 @@ function AboutMeContent() {
             <Text style={styles.label}>Bio</Text>
             <TextInput
               style={styles.textArea}
-              placeholder="Share a little about your journey (optional)"
+              placeholder="About You"
               placeholderTextColor="#9ca3af"
               multiline
-              numberOfLines={4}
+              numberOfLines={3}
               textAlignVertical="top"
               value={bio}
               onChangeText={setBio}
+            />
+          </View>
+          
+          <View style={styles.toggleContainer}>
+            <Text style={styles.toggleLabel}>Are you using our product?</Text>
+            <Switch
+              trackColor={{ false: '#d1d5db', true: '#0d9488' }}
+              thumbColor={isUsingProduct ? '#ffffff' : '#f4f3f4'}
+              ios_backgroundColor="#d1d5db"
+              onValueChange={setIsUsingProduct}
+              value={isUsingProduct}
             />
           </View>
           
@@ -96,15 +218,8 @@ function AboutMeContent() {
             {isLoading ? (
               <Text style={styles.continueButtonText}>Setting up your profile...</Text>
             ) : (
-              <Text style={styles.continueButtonText}>Continue to App</Text>
+              <Text style={styles.continueButtonText}>Complete Profile</Text>
             )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.skipButton}
-            onPress={() => router.replace('/(tabs)/home')}
-          >
-            <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -117,18 +232,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  errorText: {
+    color: 'red',
+    marginBottom: 16,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
   scrollContainer: {
     flexGrow: 1,
-    padding: 24,
+    padding: 22,
+    paddingTop: 30,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 20,
+    marginTop: 15,
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
@@ -139,13 +263,21 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   label: {
     fontSize: 16,
     fontWeight: '500',
     color: '#111827',
-    marginBottom: 8,
+  },
+  helpIcon: {
+    marginLeft: 5,
+    padding: 2,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -154,7 +286,7 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 12,
     paddingHorizontal: 16,
-    height: 56,
+    height: 52,
     backgroundColor: '#f9fafb',
   },
   input: {
@@ -172,21 +304,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1f2937',
     backgroundColor: '#f9fafb',
-    minHeight: 120,
+    minHeight: 80,
   },
   privacyNote: {
     fontSize: 14,
     color: '#6b7280',
-    marginBottom: 32,
-    lineHeight: 20,
+    marginBottom: 18,
+    marginTop: 8,
+    lineHeight: 19,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
   },
   continueButton: {
     backgroundColor: '#0d9488',
     borderRadius: 12,
-    height: 56,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
+    marginTop: 18,
   },
   continueButtonDisabled: {
     backgroundColor: '#0d948880',

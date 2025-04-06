@@ -31,12 +31,25 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack 
+        screenOptions={{ 
+          headerShown: false,
+          gestureEnabled: false,
+          animation: 'none'
+        }}
+      >
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="about-me" />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="(tabs)" 
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false,
+            animation: 'none'
+          }} 
+        />
       </Stack>
       <StatusBar style="auto" />
     </>

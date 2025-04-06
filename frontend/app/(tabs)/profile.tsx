@@ -9,7 +9,7 @@ const mockUser = {
   joinDate: "Member since April 2025",
   condition: "Rheumatoid Arthritis",
   pronouns: "She/Her",
-  bio: "Living with RA for 3 years. Passionate about raising awareness and connecting with others on similar journeys.",
+  bio: "Living with RA for 3 years. Passionate about raising awareness and connecting with others on similar journeys through Recovrly.",
   stats: {
     posts: 24,
     comments: 47,

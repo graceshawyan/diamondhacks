@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Link, router, Stack } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Alert, BackHandler } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Link, Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 
 export default function LoginScreen() {
   // Add Stack options to disable gestures
@@ -9,37 +11,90 @@ export default function LoginScreen() {
     <>
       <Stack.Screen options={{ 
         gestureEnabled: false,
-        headerShown: false
+        headerShown: false,
+        // Prevent going back with the hardware back button
+        headerBackVisible: false,
+        // Prevent going back with swipe gesture
+        animation: 'none'
       }} />
       <LoginContent />
     </>
   );
 }
 
+// Get the appropriate base URL depending on the platform
+const getBaseUrl = (): string => {
+  if (__DEV__) {
+    if (Platform.OS === 'android') {
+      // Use actual IP address for Expo Go
+      return 'http://172.20.10.6:5000';
+    } else if (Platform.OS === 'ios') {
+      // Use actual IP address for iOS 
+      return 'http://172.20.10.6:5000';
+    } else {
+      return 'http://localhost:5000'; // Web
+    }
+  }
+  // Return production URL if not in development
+  return 'https://your-production-server.com';
+};
+
 function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Prevent going back with hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => backHandler.remove();
+  }, []);
 
   const handleLogin = async () => {
+    // Reset error message
+    setErrorMessage('');
+    
+    // Validate inputs
     if (!email || !password) {
-      alert('Please fill in all fields');
+      setErrorMessage('Please fill in all fields');
       return;
     }
-
+    
     setIsLoading(true);
     
     try {
-      // This would be replaced with actual API call
-      setTimeout(() => {
-        // Simulate successful login
-        router.replace('/(tabs)/home');
-        setIsLoading(false);
-      }, 1500);
+      // Call the backend API to login
+      console.log('Attempting to login at:', `${getBaseUrl()}/patient/login`);
+      const response = await fetch(`${getBaseUrl()}/patient/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+      
+      // Store the auth token securely in AsyncStorage
+      await AsyncStorage.setItem('authToken', data.token);
+      console.log('User logged in with token:', data.token);
+      
+      // Navigate to home page
+      router.replace('/(tabs)/home');
     } catch (error) {
+      console.error('Login error:', error);
+      setErrorMessage('Incorrect email or password');
+    } finally {
       setIsLoading(false);
-      alert('Login failed. Please check your credentials.');
     }
   };
 
@@ -51,16 +106,19 @@ function LoginContent() {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/images/icon.png')} 
+            source={require('../assets/images/logo.png')} 
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>HealthJourney</Text>
           <Text style={styles.tagline}>Track, Connect, Thrive</Text>
         </View>
         
         <View style={styles.formContainer}>
           <Text style={styles.title}>Welcome Back</Text>
+          
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
           
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#6b7280" style={styles.inputIcon} />
@@ -128,15 +186,15 @@ function LoginContent() {
             <Ionicons name="logo-apple" size={20} color="#000000" />
             <Text style={styles.socialButtonText}>Continue with Apple</Text>
           </TouchableOpacity>
-        </View>
-        
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/register" asChild>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </Link>
+          
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Link href="/register" asChild>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -147,6 +205,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -159,7 +223,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logo: {
-    width: 80,
+    width: 160,
     height: 80,
     marginBottom: 16,
   },
@@ -252,7 +316,7 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 12,
     height: 56,
-    marginBottom: 16,
+    marginBottom: 12,
     backgroundColor: '#ffffff',
   },
   socialButtonText: {
@@ -263,7 +327,8 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 8,
+    marginBottom: 8,
   },
   footerText: {
     fontSize: 16,

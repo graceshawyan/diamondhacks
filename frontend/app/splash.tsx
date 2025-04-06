@@ -25,11 +25,10 @@ export default function SplashScreen() {
     <View style={styles.container}>
       <Animated.View style={{ opacity: fadeAnim }}>
         <Image 
-          source={require('../assets/images/icon.png')} 
+          source={require('../assets/images/logo.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.appName}>HealthJourney</Text>
         <Text style={styles.tagline}>Track, Connect, Thrive</Text>
       </Animated.View>
     </View>
@@ -44,9 +43,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 120,
+    width: 220,
     height: 120,
     marginBottom: 24,
+    alignSelf: 'center',
   },
   appName: {
     fontSize: 32,
