@@ -22,64 +22,10 @@ const getBaseUrl = (): string => {
 };
 
 export default function TabLayout() {
-  const [showMedsTab, setShowMedsTab] = useState(false);
-  
   // Prevent going back to login, welcome, or loading pages
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => backHandler.remove();
-  }, []);
-  
-  // Check if user is using product to show Meds tab
-  useEffect(() => {
-    const checkUserProduct = async () => {
-      try {
-        console.log('Checking user product status...');
-        
-        // Get the token from AsyncStorage
-        const token = await AsyncStorage.getItem('authToken');
-        if (!token) {
-          console.log('No auth token found');
-          return;
-        }
-        console.log('Auth token found');
-        
-        // Get base URL
-        const baseUrl = getBaseUrl();
-        console.log('Using base URL:', baseUrl);
-        
-        // Fetch user info
-        console.log('Fetching user info...');
-        const response = await fetch(`${baseUrl}/patient/user-info`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        console.log('User info response status:', response.status);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('User info data:', JSON.stringify(data, null, 2));
-          
-          if (data.data && data.data.patient) {
-            // Check if product is true
-            const productStatus = data.data.patient.product === true;
-            console.log('Product status:', productStatus);
-            setShowMedsTab(productStatus);
-          } else {
-            console.log('Patient data not found in response');
-          }
-        } else {
-          console.log('Failed to fetch user info');
-        }
-      } catch (error) {
-        console.error('Error checking user product status:', error);
-      }
-    };
-    
-    checkUserProduct();
   }, []);
   
   return (
@@ -119,9 +65,8 @@ export default function TabLayout() {
           animation: 'none',
         }}
       />
-      
-      {/* Search tab */}
-      <Tabs.Screen
+       {/* Search tab */}
+       <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
@@ -145,20 +90,18 @@ export default function TabLayout() {
         }}
       />
       
-      {/* Always show Meds tab if showMedsTab is true - positioned before Profile */}
-      {showMedsTab && (
-        <Tabs.Screen
-          name="meds"
-          options={{
-            title: 'Medications',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name="pill" size={24} color={color} />
-            ),
-            gestureEnabled: false,
-            animation: 'none',
-          }}
-        />
-      )}
+      {/* Meds tab is always shown in tabs2 layout */}
+      <Tabs.Screen
+        name="meds"
+        options={{
+          title: 'Medications',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name="medkit" size={24} color={color} />
+          ),
+          gestureEnabled: false,
+          animation: 'none',
+        }}
+      />
       
       {/* Profile tab always appears last */}
       <Tabs.Screen

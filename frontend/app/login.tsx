@@ -87,9 +87,44 @@ function LoginContent() {
       // Store the auth token securely in AsyncStorage
       await AsyncStorage.setItem('authToken', data.token);
       console.log('User logged in with token:', data.token);
+
+      const token2 = await AsyncStorage.getItem('authToken');
+      if (!token2) {
+        router.replace('/welcome');
+        return;
+      }
       
-      // Navigate to home page
-      router.replace('/(tabs)/home');
+      // Fetch user info to check product status
+      const userInfoResponse = await fetch(`${getBaseUrl()}/patient/user-info`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token2}`
+        }
+      });
+      
+      if (userInfoResponse.ok) {
+        const userData = await userInfoResponse.json();
+        console.log('User info data:', JSON.stringify(userData, null, 2));
+        
+        // Check if this user should see the meds tab
+        console.log('Product field raw value:', userData.data?.patient?.product);
+        console.log('Product field type:', typeof userData.data?.patient?.product);
+        
+        // Explicitly convert to boolean using triple equals to ensure proper type checking
+        const hasMedsAccess = userData.data?.patient?.product === true;
+        console.log('Final meds access decision:', hasMedsAccess);
+        
+        if (hasMedsAccess) {
+          // Product is true, route to tabs2 layout
+          router.replace('/(tabs2)/home');
+        } else {
+          // Product is false, route to original tabs layout
+          router.replace('/(tabs)/home');
+        }
+      } else {
+        // If we can't check product status, default to original tabs
+        router.replace('/(tabs)/home');
+      }
     } catch (error) {
       console.error('Login error:', error);
       setErrorMessage('Incorrect email or password');
