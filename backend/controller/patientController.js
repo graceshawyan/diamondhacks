@@ -64,7 +64,8 @@ export const register = async (req, res) => {
       age: null,           // Age if provided
       pronouns: '',
       condition: '',       // Condition if provided
-      bio: '',             // Bio if provided
+      bio: '', 
+      product: false,            // Bio if provided
       createdAt: new Date()
     };
 
@@ -166,15 +167,25 @@ export const getUserInfo = async (req, res) => {
 // Update patient profile
 export const updateProfile = async (req, res) => {
   try {
-    const { pfp, bio, age, pronouns, condition } = req.body;
+    const { bio, age, pronouns, condition, product } = req.body;
     
     // Only allow specific fields to be updated
     const updateData = {};
-    if (pfp) updateData.pfp = pfp;
     if (bio !== undefined) updateData.bio = bio;
     if (age !== undefined) updateData.age = age;
     if (pronouns) updateData.pronouns = pronouns;
     if (condition !== undefined) updateData.condition = condition;
+    if (product !== undefined) updateData.product = product === 'true' || product === true;
+    
+    // Handle profile picture upload if present
+    if (req.file) {
+      // Store the image data in MongoDB
+      updateData.pfp = {
+        data: req.file.buffer.toString('base64'),
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      };
+    }
     
     // Connect directly to the patients collection
     const db = mongoose.connection.db;
@@ -196,6 +207,15 @@ export const updateProfile = async (req, res) => {
       });
     }
     
+    // Don't send the full profile picture data back in the response
+    if (updatedPatient.pfp && updatedPatient.pfp.data) {
+      updatedPatient.pfp = {
+        contentType: updatedPatient.pfp.contentType,
+        filename: updatedPatient.pfp.filename,
+        _id: updatedPatient.pfp._id
+      };
+    }
+    
     res.status(200).json({
       status: 'success',
       data: {
@@ -203,6 +223,7 @@ export const updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('Profile update error:', error);
     res.status(500).json({
       status: 'error',
       message: error.message,

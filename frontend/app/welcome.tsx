@@ -20,11 +20,10 @@ function WelcomeContent() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Image 
-          source={require('../assets/images/icon.png')} 
+          source={require('../assets/images/logo.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.appName}>HealthJourney</Text>
         <Text style={styles.tagline}>Track, Connect, Thrive</Text>
         
         <View style={styles.features}>
@@ -97,7 +96,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   logo: {
-    width: 100,
+    width: 180,
     height: 100,
     marginBottom: 20,
   },
@@ -110,11 +109,12 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 18,
     color: '#6b7280',
-    marginBottom: 48,
+    marginBottom: 30,
   },
   features: {
     width: '100%',
-    marginTop: 20,
+    marginTop: 10,
+    marginBottom: 30, // Add more space before the Get Started button
   },
   featureItem: {
     flexDirection: 'row',

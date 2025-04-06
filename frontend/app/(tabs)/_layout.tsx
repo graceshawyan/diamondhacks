@@ -1,7 +1,15 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
+import { BackHandler } from 'react-native';
 
 export default function TabLayout() {
+  // Prevent going back to login, welcome, or loading pages
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => backHandler.remove();
+  }, []);
+  
   return (
     <Tabs
       screenOptions={{
@@ -11,6 +19,11 @@ export default function TabLayout() {
           height: 60,
         },
         headerShown: false,
+        // Prevent going back with the hardware back button
+        headerBackVisible: false,
+        // Prevent going back with swipe gesture
+        gestureEnabled: false,
+        animation: 'none',
       }}
     >
       <Tabs.Screen

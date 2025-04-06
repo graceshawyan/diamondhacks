@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Alert, BackHandler } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 
 export default function RegisterScreen() {
   // Add Stack options to disable gestures
@@ -9,12 +11,33 @@ export default function RegisterScreen() {
     <>
       <Stack.Screen options={{ 
         gestureEnabled: false,
-        headerShown: false
+        headerShown: false,
+        // Prevent going back with the hardware back button
+        headerBackVisible: false,
+        // Prevent going back with swipe gesture
+        animation: 'none'
       }} />
       <RegisterContent />
     </>
   );
 }
+
+// Get the appropriate base URL depending on the platform
+const getBaseUrl = (): string => {
+  if (__DEV__) {
+    if (Platform.OS === 'android') {
+      // Use actual IP address for Expo Go
+      return 'http://172.20.10.6:5000';
+    } else if (Platform.OS === 'ios') {
+      // Use actual IP address for iOS 
+      return 'http://172.20.10.6:5000';
+    } else {
+      return 'http://localhost:5000'; // Web
+    }
+  }
+  // Return production URL if not in development
+  return 'https://your-production-server.com';
+};
 
 function RegisterContent() {
   const [name, setName] = useState('');
@@ -24,30 +47,61 @@ function RegisterContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Prevent going back with hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => backHandler.remove();
+  }, []);
 
   const handleRegister = async () => {
+    // Reset error message
+    setErrorMessage('');
+    
     if (!name || !email || !password || !confirmPassword) {
-      alert('Please fill in all fields');
+      setErrorMessage('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setErrorMessage('Passwords do not match');
       return;
     }
 
     setIsLoading(true);
     
     try {
-      // This would be replaced with actual API call
-      setTimeout(() => {
-        // Simulate successful registration
-        router.replace('/about-me');
-        setIsLoading(false);
-      }, 1500);
+      // Call the backend API to register the patient
+      const response = await fetch(`${getBaseUrl()}/patient/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+      
+      // Store the auth token securely in AsyncStorage
+      await AsyncStorage.setItem('authToken', data.token);
+      console.log('User registered and logged in with token:', data.token);
+      
+      // Navigate to profile picture page
+      router.replace('/profile-picture');
     } catch (error) {
+      console.error('Registration error:', error);
+      setErrorMessage('Registration failed. Email may already be in use.');
+    } finally {
       setIsLoading(false);
-      alert('Registration failed. Please try again.');
     }
   };
 
@@ -59,16 +113,19 @@ function RegisterContent() {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/images/icon.png')} 
+            source={require('../assets/images/logo.png')} 
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>HealthJourney</Text>
           <Text style={styles.tagline}>Track, Connect, Thrive</Text>
         </View>
         
         <View style={styles.formContainer}>
           <Text style={styles.title}>Create Account</Text>
+          
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
           
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={20} color="#6b7280" style={styles.inputIcon} />
@@ -193,10 +250,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
   scrollContainer: {
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 60, // Move content lower
+    padding: 20,
+    paddingTop: 60, // Increased padding at top to move content down
   },
   logoContainer: {
     alignItems: 'center',
@@ -204,28 +267,28 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logo: {
-    width: 60,
-    height: 60,
-    marginBottom: 12,
+    width: 140,
+    height: 70,
+    marginBottom: 8,
   },
   appName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#0d9488',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
   },
   formContainer: {
     width: '100%',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#111827',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -234,8 +297,8 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 16,
-    height: 56,
+    marginBottom: 12,
+    height: 50,
     backgroundColor: '#f9fafb',
   },
   inputIcon: {
@@ -250,12 +313,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   termsContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   termsText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
-    lineHeight: 20,
+    lineHeight: 16,
   },
   termsLink: {
     color: '#0d9488',
@@ -264,10 +327,10 @@ const styles = StyleSheet.create({
   registerButton: {
     backgroundColor: '#0d9488',
     borderRadius: 12,
-    height: 56,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   registerButtonDisabled: {
     backgroundColor: '#0d948880',
@@ -280,7 +343,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   dividerLine: {
     flex: 1,
@@ -299,8 +362,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 12,
-    height: 56,
-    marginBottom: 16,
+    height: 46,
+    marginBottom: 12,
     backgroundColor: '#ffffff',
   },
   socialButtonText: {
@@ -311,8 +374,8 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 8,
+    marginBottom: 16,
   },
   footerText: {
     fontSize: 16,
