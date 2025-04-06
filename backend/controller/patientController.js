@@ -31,7 +31,7 @@ const createSendToken = (patient, statusCode, res) => {
 export const register = async (req, res) => {
   try {
     const { 
-      name, 
+      name, // Will be changed to username in frontend but keep as name for now for backward compatibility
       email, 
       password, 
     } = req.body;
@@ -54,10 +54,10 @@ export const register = async (req, res) => {
 
     // Create new patient with initialized fields
     const newPatient = {
-      name,
+      name, // This is the username
       email,
       password: hashedPassword,
-      pfp: 'default.jpg',  // Default profile picture
+      pfp: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',  // Default profile picture
       posts: [],           // Empty posts array
       followers: [],       // Empty followers array
       following: [],       // Empty following array
@@ -66,7 +66,7 @@ export const register = async (req, res) => {
       pronouns: '',
       condition: '',       // Condition if provided
       bio: '', 
-      product: false,      // Whether patient is using product
+      product,      // Whether patient is using product
       // Initialize empty medication schedule
       med_schedule: {},    // Structure for medication schedules
       createdAt: new Date()
@@ -131,7 +131,7 @@ export const logout = (req, res) => {
   });
 };
 
-// Get user information (pfp, bio, age, pronouns, condition)
+// Get user information (pfp, bio, age, pronouns, condition, posts count, followers count, following count)
 export const getUserInfo = async (req, res) => {
   try {
     const patientId = req.params.id || req.patient._id;
@@ -143,7 +143,19 @@ export const getUserInfo = async (req, res) => {
     // Find the patient by ID
     const patient = await patientsCollection.findOne(
       { _id: new mongoose.Types.ObjectId(patientId) },
-      { projection: { pfp: 1, bio: 1, age: 1, pronouns: 1, condition: 1, name: 1 } }
+      { projection: { 
+        pfp: 1, 
+        bio: 1, 
+        age: 1, 
+        pronouns: 1, 
+        condition: 1, 
+        name: 1, // name field represents username
+        email: 1, // Include email for profile settings
+        posts: 1,
+        followers: 1,
+        following: 1,
+        product: 1,
+      } }
     );
     
     if (!patient) {
@@ -152,6 +164,13 @@ export const getUserInfo = async (req, res) => {
         message: 'Patient not found',
       });
     }
+    
+    // Add stats to the patient object
+    patient.stats = {
+      postsCount: patient.posts ? patient.posts.length : 0,
+      followersCount: patient.followers ? patient.followers.length : 0,
+      followingCount: patient.following ? patient.following.length : 0
+    };
     
     res.status(200).json({
       status: 'success',
@@ -178,7 +197,21 @@ export const updateProfile = async (req, res) => {
     if (age !== undefined) updateData.age = age;
     if (pronouns) updateData.pronouns = pronouns;
     if (condition !== undefined) updateData.condition = condition;
-    if (product !== undefined) updateData.product = product === 'true' || product === true;
+    // Fix product toggle conversion to ensure it properly captures boolean values
+    if (product !== undefined) {
+      console.log('Product value received:', product, 'type:', typeof product);
+      // Handle different ways product might be provided (string, boolean, etc.)
+      if (typeof product === 'boolean') {
+        updateData.product = product;
+      } else if (typeof product === 'string') {
+        updateData.product = product.toLowerCase() === 'true';
+      } else if (typeof product === 'number') {
+        updateData.product = product === 1;
+      } else {
+        updateData.product = Boolean(product);
+      }
+      console.log('Product value after conversion:', updateData.product);
+    }
     
     // Handle profile picture upload if present
     if (req.file) {
@@ -235,18 +268,112 @@ export const updateProfile = async (req, res) => {
       message: error.message,
     });
   }
+  
+  // Handle profile picture upload if present
+  if (req.file) {
+    // Store the image data in MongoDB
+    updateData.pfp = {
+      data: req.file.buffer.toString('base64'),
+      contentType: req.file.mimetype,
+      filename: req.file.originalname
+    };
+  }
+  
+  // Connect directly to the patients collection
+  const db = mongoose.connection.db;
+  const patientsCollection = db.collection('patients');
+  
+  // Log the patient ID for debugging
+  console.log('Updating profile for patient ID:', req.patient._id);
+  
+  // Find and update the patient
+  const result = await patientsCollection.findOneAndUpdate(
+    { _id: new mongoose.Types.ObjectId(req.patient._id) },
+    { $set: updateData },
+    { returnDocument: 'after' }
+  );
+  
+  const updatedPatient = result.value || result;
+  
+  if (!updatedPatient) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Patient not found',
+    });
+  }
+  
+  // Don't send the full profile picture data back in the response
+  if (updatedPatient.pfp && updatedPatient.pfp.data) {
+    updatedPatient.pfp = {
+      contentType: updatedPatient.pfp.contentType,
+      filename: updatedPatient.pfp.filename,
+      _id: updatedPatient.pfp._id
+    };
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      patient: updatedPatient,
+    },
+  });
+
 };
 
 // Protect routes - middleware to check if user is logged in
+// Format medication data from API to display format
+const formatMedicationData = (medSchedule) => {
+  if (!medSchedule) return [];
+  
+  const formatted = [];
+  let id = 1;
+  
+  Object.entries(medSchedule).forEach(([name, medData]) => {
+    // Extract active status and schedule from medication data
+    const active = medData.active !== undefined ? medData.active : true;
+    const schedule = medData.schedule || {};
+    
+    // Create human-readable frequency and time strings
+    const days = Object.keys(schedule);
+    const times = new Set();
+    
+    days.forEach(day => {
+      schedule[day].forEach(time => {
+        times.add(time);
+      });
+    });
+    
+    let frequency;
+    if (days.length === 7) {
+      frequency = 'Daily';
+    } else if (days.length === 1) {
+      frequency = `Every ${days[0]}`;
+    } else {
+      frequency = `${days.join(', ')}`;
+    }
+    
+    formatted.push({
+      id: String(id++),
+      name,
+      frequency,
+      time: Array.from(times).join(', '),
+      active: active,
+      rawSchedule: schedule // Keep original schedule for edits
+    });
+  });
+  
+  return formatted;
+};
+
 // Add medication to schedule
 export const addMedication = async (req, res) => {
   try {
-    const { medicationName, schedule } = req.body;
+    const { name, active, timeSlots } = req.body;
     
-    if (!medicationName || !schedule) {
+    if (!name || !timeSlots) {
       return res.status(400).json({
         status: 'fail',
-        message: 'Please provide medication name and schedule',
+        message: 'Please provide medication name and time slots',
       });
     }
     
@@ -254,10 +381,16 @@ export const addMedication = async (req, res) => {
     const db = mongoose.connection.db;
     const patientsCollection = db.collection('patients');
     
+    // Create the medication entry with the new format
+    const medicationEntry = {
+      active: active !== undefined ? active : true, // Default to active if not provided
+      schedule: timeSlots
+    };
+    
     // Create the med_schedule path update
-    const updatePath = `med_schedule.${medicationName}`;
+    const updatePath = `med_schedule.${name}`;
     const updateObj = {};
-    updateObj[updatePath] = schedule;
+    updateObj[updatePath] = medicationEntry;
     
     // Update the patient's medication schedule
     const result = await patientsCollection.findOneAndUpdate(

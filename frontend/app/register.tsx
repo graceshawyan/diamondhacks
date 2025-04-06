@@ -40,7 +40,7 @@ const getBaseUrl = (): string => {
 };
 
 function RegisterContent() {
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -59,7 +59,7 @@ function RegisterContent() {
     // Reset error message
     setErrorMessage('');
     
-    if (!name || !email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
       setErrorMessage('Please fill in all fields');
       return;
     }
@@ -79,7 +79,7 @@ function RegisterContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name,
+          name: username, // Sending as name for backend compatibility
           email,
           password
         }),
@@ -131,10 +131,10 @@ function RegisterContent() {
             <Ionicons name="person-outline" size={20} color="#6b7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Full Name"
+              placeholder="Username"
               placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={setName}
+              value={username}
+              onChangeText={setUsername}
             />
           </View>
           
