@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function RegisterScreen() {
+  // Add Stack options to disable gestures
+  return (
+    <>
+      <Stack.Screen options={{ 
+        gestureEnabled: false,
+        headerShown: false
+      }} />
+      <RegisterContent />
+    </>
+  );
+}
+
+function RegisterContent() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -183,6 +196,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     padding: 24,
+    paddingTop: 60, // Move content lower
   },
   logoContainer: {
     alignItems: 'center',
