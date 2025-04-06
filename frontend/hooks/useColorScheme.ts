@@ -7,3 +7,6 @@ import { useColorScheme as _useColorScheme } from 'react-native';
 export default function useColorScheme(): 'light' | 'dark' {
   return _useColorScheme() || 'light';
 }
+
+// Also export as named export for consistency
+export { useColorScheme };
