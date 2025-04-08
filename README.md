@@ -1,4 +1,4 @@
-# 💡 Recovrly
+# 💡 Recovrly 
 
 
 ## 🩺 Inspiration
