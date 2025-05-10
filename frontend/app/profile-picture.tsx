@@ -25,12 +25,12 @@ const getBaseUrl = (): string => {
   if (__DEV__) {
     if (Platform.OS === 'android') {
       // Use actual IP address for Expo Go
-      return 'http://172.20.10.6:5000';
+      return 'http://100.64.217.136:5001';
     } else if (Platform.OS === 'ios') {
       // Use actual IP address for iOS 
-      return 'http://172.20.10.6:5000';
+      return 'http://100.64.217.136:5001';
     } else {
-      return 'http://localhost:5000'; // Web
+      return 'http://localhost:5001'; // Web
     }
   }
   // Return production URL if not in development
